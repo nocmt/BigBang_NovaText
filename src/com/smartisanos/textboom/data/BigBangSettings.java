@@ -3,6 +3,8 @@ package com.cashewteam.novatext.android.data;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.cashewteam.novatext.android.FloatingBallTriggerPolicy;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -29,6 +31,7 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = "floating_ball_one_hand_angle_degrees";
     public static final String KEY_FLOATING_BALL_HIDDEN = "floating_ball_hidden";
     public static final String KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA = "floating_ball_landscape_safe_area";
+    public static final String KEY_FLOATING_BALL_TRIGGER_MODE = "floating_ball_trigger_mode";
     public static final String KEY_ADAPTIVE_LAUNCHER_ICON = "adaptive_launcher_icon";
     public static final String KEY_CLASSIC_OVERLAY_STYLE = "classic_overlay_style";
 
@@ -70,6 +73,7 @@ public final class BigBangSettings {
     private static final int DEFAULT_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = 80;
     private static final int DEFAULT_FLOATING_BALL_IDLE_ALPHA_PERCENT = 20;
     private static final int DEFAULT_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = 18;
+    private static final int DEFAULT_FLOATING_BALL_TRIGGER_MODE = FloatingBallTriggerPolicy.MODE_CLICK;
 
     private final SharedPreferences preferences;
 
@@ -264,6 +268,19 @@ public final class BigBangSettings {
 
     public void setFloatingBallLandscapeSafeAreaEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA, enabled).apply();
+    }
+
+    public int getFloatingBallTriggerMode() {
+        return FloatingBallTriggerPolicy.normalize(preferences.getInt(
+                KEY_FLOATING_BALL_TRIGGER_MODE,
+                DEFAULT_FLOATING_BALL_TRIGGER_MODE
+        ));
+    }
+
+    public void setFloatingBallTriggerMode(int value) {
+        preferences.edit()
+                .putInt(KEY_FLOATING_BALL_TRIGGER_MODE, FloatingBallTriggerPolicy.normalize(value))
+                .apply();
     }
 
     public boolean isAdaptiveLauncherIconEnabled() {

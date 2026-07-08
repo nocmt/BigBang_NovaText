@@ -41,6 +41,7 @@ import android.view.animation.LinearInterpolator
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.cashewteam.novatext.android.FloatingBallTriggerPolicy
 import com.cashewteam.novatext.android.R
 import com.cashewteam.novatext.android.data.BigBangPreferences
 import com.cashewteam.novatext.android.data.BigBangSettings
@@ -224,12 +225,14 @@ class FloatingBallService : Service(), SensorEventListener {
                 downX = layoutParams.x
                 downY = layoutParams.y
                 val now = System.currentTimeMillis()
-                if (now - lastTapAt <= DOUBLE_TAP_WINDOW_MS) {
+                if (
+                    settings.floatingBallTriggerMode == FloatingBallTriggerPolicy.MODE_DRAG &&
+                    now - lastTapAt <= DOUBLE_TAP_WINDOW_MS
+                ) {
                     mode = MODE_RELOCATE
                 } else if (mode != MODE_RELOCATE) {
                     mode = MODE_DETECT
                 }
-                lastTapAt = now
                 return true
             }
 
@@ -247,26 +250,31 @@ class FloatingBallService : Service(), SensorEventListener {
                 val moved = abs(event.rawX - downRawX) > MOVE_THRESHOLD_PX ||
                     abs(event.rawY - downRawY) > MOVE_THRESHOLD_PX
                 if (!moved) {
-                    scheduleBubbleFade()
-                    bubbleView?.performClick()
+                    val now = System.currentTimeMillis()
+                    val secondTap = now - lastTapAt <= DOUBLE_TAP_WINDOW_MS
+                    lastTapAt = now
+                    if (FloatingBallTriggerPolicy.shouldCaptureTap(settings.floatingBallTriggerMode, secondTap)) {
+                        launchCaptureAtBubbleCenter()
+                    } else {
+                        scheduleBubbleFade()
+                        bubbleView?.performClick()
+                    }
+                    mode = MODE_IDLE
                     return true
                 }
 
-                if (mode == MODE_RELOCATE) {
+                lastTapAt = 0L
+                if (
+                    mode == MODE_RELOCATE ||
+                    !FloatingBallTriggerPolicy.shouldCaptureDrag(settings.floatingBallTriggerMode)
+                ) {
                     scheduleBubbleFade()
                     saveCurrentPositionAsAnchor()
                     updateBubbleLayout()
                     mode = MODE_IDLE
                 } else {
-                    val bubbleCenter = getBubbleIconCenterOnScreen()
-                    val sampleX = bubbleCenter?.x ?: (layoutParams.x + layoutParams.width / 2)
-                    val sampleY = bubbleCenter?.y ?: (layoutParams.y + layoutParams.height / 2)
-                    beginCaptureLaunchSuppression()
-                    val nextY = if (settings.isFloatingBallHeightLocked) anchorY else layoutParams.y
-                    dockToNearestSide(sampleX, nextY)
-                    updateBubbleLayout()
+                    launchCaptureAtBubbleCenter()
                     mode = MODE_IDLE
-                    BigBangCaptureDispatcher.captureAt(applicationContext, sampleX, sampleY)
                 }
                 return true
             }
@@ -279,6 +287,17 @@ class FloatingBallService : Service(), SensorEventListener {
             }
         }
         return false
+    }
+
+    private fun launchCaptureAtBubbleCenter() {
+        val bubbleCenter = getBubbleIconCenterOnScreen()
+        val sampleX = bubbleCenter?.x ?: (layoutParams.x + layoutParams.width / 2)
+        val sampleY = bubbleCenter?.y ?: (layoutParams.y + layoutParams.height / 2)
+        beginCaptureLaunchSuppression()
+        val nextY = if (settings.isFloatingBallHeightLocked) anchorY else layoutParams.y
+        dockToNearestSide(sampleX, nextY)
+        updateBubbleLayout()
+        BigBangCaptureDispatcher.captureAt(applicationContext, sampleX, sampleY)
     }
 
     private fun showActiveBubble() {

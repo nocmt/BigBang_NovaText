@@ -181,6 +181,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallOneHandAngleChange = { updateFloatingBallOneHandAngle(it) },
                     onFloatingBallHiddenChange = { updateFloatingBallHidden(it) },
                     onFloatingBallLandscapeSafeAreaChange = { updateFloatingBallLandscapeSafeArea(it) },
+                    onFloatingBallTriggerModeChange = { updateFloatingBallTriggerMode(it) },
                     onAdaptiveLauncherIconChange = { updateAdaptiveLauncherIcon(it) },
                     onClassicOverlayStyleChange = { updateClassicOverlayStyle(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
@@ -309,6 +310,11 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun updateFloatingBallLandscapeSafeArea(enabled: Boolean) {
         settings.setFloatingBallLandscapeSafeAreaEnabled(enabled)
+        FloatingBallService.refreshAppearance(this)
+    }
+
+    private fun updateFloatingBallTriggerMode(mode: Int) {
+        settings.setFloatingBallTriggerMode(mode)
         FloatingBallService.refreshAppearance(this)
     }
 
@@ -559,6 +565,7 @@ private fun SettingsScreen(
     onFloatingBallOneHandAngleChange: (Int) -> Unit,
     onFloatingBallHiddenChange: (Boolean) -> Unit,
     onFloatingBallLandscapeSafeAreaChange: (Boolean) -> Unit,
+    onFloatingBallTriggerModeChange: (Int) -> Unit,
     onAdaptiveLauncherIconChange: (Boolean) -> Unit,
     onClassicOverlayStyleChange: (Boolean) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
@@ -635,6 +642,9 @@ private fun SettingsScreen(
     }
     var floatingBallLandscapeSafeArea by rememberSaveable {
         mutableStateOf(settings.isFloatingBallLandscapeSafeAreaEnabled)
+    }
+    var floatingBallTriggerMode by rememberSaveable {
+        mutableIntStateOf(settings.floatingBallTriggerMode)
     }
     var adaptiveLauncherIconEnabled by rememberSaveable {
         mutableStateOf(settings.isAdaptiveLauncherIconEnabled)
@@ -794,6 +804,7 @@ private fun SettingsScreen(
                             floatingBallOneHandAngle = floatingBallOneHandAngle,
                             floatingBallHidden = floatingBallHidden,
                             floatingBallLandscapeSafeArea = floatingBallLandscapeSafeArea,
+                            floatingBallTriggerMode = floatingBallTriggerMode,
                             onFloatingBallSizeChange = {
                                 floatingBallSizePercent = it
                                 onFloatingBallSizeChange(it)
@@ -825,6 +836,10 @@ private fun SettingsScreen(
                             onFloatingBallLandscapeSafeAreaChange = {
                                 floatingBallLandscapeSafeArea = it
                                 onFloatingBallLandscapeSafeAreaChange(it)
+                            },
+                            onFloatingBallTriggerModeChange = {
+                                floatingBallTriggerMode = it
+                                onFloatingBallTriggerModeChange(it)
                             },
                         )
                     }
@@ -1768,6 +1783,7 @@ private fun DebugSwitchRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FloatingBallSection(
     floatingBallSizePercent: Int,
@@ -1778,6 +1794,7 @@ private fun FloatingBallSection(
     floatingBallOneHandAngle: Int,
     floatingBallHidden: Boolean,
     floatingBallLandscapeSafeArea: Boolean,
+    floatingBallTriggerMode: Int,
     onFloatingBallSizeChange: (Int) -> Unit,
     onFloatingBallActiveAlphaChange: (Int) -> Unit,
     onFloatingBallIdleAlphaChange: (Int) -> Unit,
@@ -1786,8 +1803,14 @@ private fun FloatingBallSection(
     onFloatingBallOneHandAngleChange: (Int) -> Unit,
     onFloatingBallHiddenChange: (Boolean) -> Unit,
     onFloatingBallLandscapeSafeAreaChange: (Boolean) -> Unit,
+    onFloatingBallTriggerModeChange: (Int) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
+    val triggerModeOptions = listOf(
+        stringResource(R.string.permission_floating_ball_trigger_click) to FloatingBallTriggerPolicy.MODE_CLICK,
+        stringResource(R.string.permission_floating_ball_trigger_double_click) to FloatingBallTriggerPolicy.MODE_DOUBLE_CLICK,
+        stringResource(R.string.permission_floating_ball_trigger_drag) to FloatingBallTriggerPolicy.MODE_DRAG,
+    )
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(
             text = stringResource(R.string.floating_ball_section_title),
@@ -1801,6 +1824,41 @@ private fun FloatingBallSection(
             fontSize = 14.sp,
             lineHeight = 20.sp,
         )
+        Text(
+            text = stringResource(R.string.permission_floating_ball_trigger_mode_title),
+            color = palette.textPrimary,
+            fontSize = 14.sp,
+        )
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            triggerModeOptions.forEachIndexed { index, item ->
+                SegmentedButton(
+                    selected = item.second == floatingBallTriggerMode,
+                    onClick = { onFloatingBallTriggerModeChange(item.second) },
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = triggerModeOptions.size,
+                    ),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = palette.accentSoft,
+                        activeContentColor = palette.textPrimary,
+                        activeBorderColor = palette.accent.copy(alpha = 0.45f),
+                        inactiveContainerColor = palette.cardInset,
+                        inactiveContentColor = palette.textSecondary,
+                        inactiveBorderColor = palette.cardBorder,
+                    ),
+                    modifier = Modifier.height(42.dp),
+                ) {
+                    Text(
+                        text = item.first,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
         FloatingBallSlider(
             title = stringResource(R.string.permission_floating_ball_size_title),
             value = floatingBallSizePercent,

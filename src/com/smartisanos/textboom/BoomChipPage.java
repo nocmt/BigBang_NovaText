@@ -13,6 +13,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.cashewteam.novatext.android.BoomActivity;
+import com.cashewteam.novatext.android.BoomEdgeActionPolicy;
 import com.cashewteam.novatext.android.BoomWordsLayout;
 import com.cashewteam.novatext.android.BoomAnimator;
 import com.cashewteam.novatext.android.SwipeSelectView;
@@ -284,7 +285,6 @@ public class BoomChipPage {
             return;
         }
         if (mBoomActionHandler != null && mBoomActionHandler.isAllSelected()) {
-            handleClick();
             return;
         }
         for (int i = 0; i < mLayout.getRowCount(); ++i) {
@@ -330,6 +330,23 @@ public class BoomChipPage {
 
     public void setOnAdjacentRequestListener(OnAdjacentRequestListener listener) {
         mOnAdjacentRequestListener = listener;
+    }
+
+    public boolean requestAdjacent(String direction) {
+        if (mAdjacentLoading) {
+            return false;
+        }
+        if (TextSessionCoordinator.INSTANCE.peekAdjacentText(direction) == null) {
+            return false;
+        }
+        mAdjacentLoading = true;
+        mScroller.setEdgeDragEnabled(false);
+        if (mOnAdjacentRequestListener != null) {
+            mOnAdjacentRequestListener.onAdjacentRequest(direction);
+            return true;
+        }
+        finishAdjacentPull();
+        return false;
     }
 
     public boolean replaceWords(int[] segment, String text, int targetWordIndex, int charOffset) {
@@ -499,10 +516,10 @@ public class BoomChipPage {
         mAdjacentOffset = offset;
         applyContentOffset(offset);
         if (offset > 0f) {
-            showAdjacentHint(mAdjacentTopHint, "before", offset);
+            showSelectAllHint(mAdjacentTopHint, offset);
             hideAdjacentHint(mAdjacentBottomHint);
         } else if (offset < 0f) {
-            showAdjacentHint(mAdjacentBottomHint, "after", -offset);
+            showSelectAllHint(mAdjacentBottomHint, -offset);
             hideAdjacentHint(mAdjacentTopHint);
         } else {
             hideAdjacentHint(mAdjacentTopHint);
@@ -514,28 +531,16 @@ public class BoomChipPage {
         if (mAdjacentLoading) {
             return;
         }
-        final String direction = offset > 0f ? "before" : offset < 0f ? "after" : null;
-        final String previewText = direction == null ? null : TextSessionCoordinator.INSTANCE.peekAdjacentText(direction);
-        if (!triggered || direction == null || previewText == null) {
-            finishAdjacentPull();
-            return;
+        final String action = BoomEdgeActionPolicy.actionForEdgePull(offset, triggered);
+        if (BoomEdgeActionPolicy.ACTION_SELECT_ALL.equals(action)) {
+            selectAll();
         }
-        mAdjacentLoading = true;
-        mScroller.setEdgeDragEnabled(false);
-        animateContentOffset(clampHoldOffset(offset));
-        if (mOnAdjacentRequestListener != null) {
-            mOnAdjacentRequestListener.onAdjacentRequest(direction);
-        }
+        finishAdjacentPull();
     }
 
-    private void showAdjacentHint(TextView view, String direction, float distance) {
-        final String preview = TextSessionCoordinator.INSTANCE.peekAdjacentText(direction);
-        if (preview == null) {
-            hideAdjacentHint(view);
-            return;
-        }
+    private void showSelectAllHint(TextView view, float distance) {
         view.setVisibility(View.VISIBLE);
-        view.setText(getHintTitle(direction));
+        view.setText(mActivity.getString(R.string.bigbang_pull_select_all));
         float alpha = Math.min(1f, distance / getTriggerDistance());
         view.setAlpha(alpha);
     }
@@ -545,23 +550,12 @@ public class BoomChipPage {
         view.setVisibility(View.GONE);
     }
 
-    private String getHintTitle(String direction) {
-        return "before".equals(direction)
-                ? mActivity.getString(R.string.bigbang_pull_previous)
-                : mActivity.getString(R.string.bigbang_pull_next);
-    }
-
     private float getTriggerDistance() {
         return TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP,
                 88f,
                 mActivity.getResources().getDisplayMetrics()
         );
-    }
-
-    private float clampHoldOffset(float offset) {
-        float hold = getTriggerDistance();
-        return offset > 0f ? hold : -hold;
     }
 
     private void applyContentOffset(float offset) {

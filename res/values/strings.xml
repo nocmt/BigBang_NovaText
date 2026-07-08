@@ -58,9 +58,9 @@
     <string name="debug_capture_trace_summary">开启后，悬浮球释放时会在 logcat 输出分流决策、包名、坐标、无障碍原始块、OCR 原始块和最终选中块信息。</string>
     <string name="debug_preview_button">打开大爆炸预览</string>
     <string name="permission_section_title">全局触发入口</string>
-    <string name="permission_section_summary">通过悬浮球和无障碍权限建立新的文本捕获入口。拖拽悬浮球并释放后，会直接抓取当前位置附近的可访问文本并打开大爆炸。</string>
-    <string name="floating_ball_section_title">悬浮球外观</string>
-    <string name="floating_ball_section_summary">调整悬浮球的大小，以及激活和静置两种状态下的透明度。</string>
+    <string name="permission_section_summary">通过悬浮球和无障碍权限建立新的文本捕获入口。默认点击悬浮球后，会直接抓取当前位置附近的可访问文本并打开大爆炸。</string>
+    <string name="floating_ball_section_title">悬浮球外观与触发</string>
+    <string name="floating_ball_section_summary">调整悬浮球的触发方式、大小，以及激活和静置两种状态下的透明度。</string>
     <string name="permission_overlay_title">悬浮窗权限</string>
     <string name="permission_accessibility_title">无障碍服务</string>
     <string name="permission_floating_ball_title">悬浮球服务</string>
@@ -73,6 +73,10 @@
     <string name="permission_start_floating_ball">启动悬浮球</string>
     <string name="permission_stop_floating_ball">关闭悬浮球</string>
     <string name="permission_reset_floating_ball">重置悬浮球位置</string>
+    <string name="permission_floating_ball_trigger_mode_title">触发方式</string>
+    <string name="permission_floating_ball_trigger_click">点击</string>
+    <string name="permission_floating_ball_trigger_double_click">双击</string>
+    <string name="permission_floating_ball_trigger_drag">拖拽</string>
     <string name="permission_floating_ball_size_title">悬浮球大小</string>
     <string name="permission_floating_ball_active_alpha_title">激活透明度</string>
     <string name="permission_floating_ball_idle_alpha_title">静置透明度</string>
@@ -136,9 +140,11 @@
     <string name="bigbang_action_more">更多</string>
     <string name="bigbang_action_ocr">OCR</string>
     <string name="bigbang_action_language">语言</string>
+    <string name="bigbang_action_previous_text">上句</string>
+    <string name="bigbang_action_next_text">下句</string>
     <string name="bigbang_action_placeholder">功能建设中</string>
-    <string name="bigbang_pull_previous">松手后获取上一段文本</string>
-    <string name="bigbang_pull_next">松手后获取下一段文本</string>
+    <string name="bigbang_pull_select_all">松手后全选文本</string>
+    <string name="bigbang_adjacent_unavailable">没有可追加的相邻文本</string>
     <string name="about_title">关于</string>
     <string name="about_description">Nova Text 是 Smartisan OS「大爆炸」功能的现代化重制版，提供屏幕文本提取、OCR 识别、分词处理与快捷搜索，兼容 Android 7+ 设备。</string>
     <string name="about_github">GitHub 项目主页</string>
