@@ -16,11 +16,11 @@ public final class BoomEdgeActionPolicy {
     public static final String DIRECTION_BEFORE = "before";
     public static final String DIRECTION_AFTER = "after";
     public static final String[] DEFAULT_ACTION_ORDER = {
-            ACTION_CANCEL_SELECTION,
             ACTION_SELECT_ALL,
             ACTION_SELECT_DIGITS,
             ACTION_SELECT_EMAIL,
-            ACTION_SELECT_LINK
+            ACTION_SELECT_LINK,
+            ACTION_CANCEL_SELECTION
     };
 
     private BoomEdgeActionPolicy() {
@@ -46,6 +46,25 @@ public final class BoomEdgeActionPolicy {
             return 0;
         }
         return (Math.max(0, currentIndex) + 1) % normalized.length;
+    }
+
+    public static int findNextExecutableIndex(
+            int currentIndex,
+            String[] actionOrder,
+            boolean[] executableActions
+    ) {
+        String[] normalized = normalizeActionOrder(actionOrder);
+        if (executableActions == null || executableActions.length != normalized.length) {
+            return -1;
+        }
+        int startIndex = Math.max(0, currentIndex) % normalized.length;
+        for (int offset = 0; offset < normalized.length; offset++) {
+            int index = (startIndex + offset) % normalized.length;
+            if (executableActions[index]) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     public static String defaultActionOrderString() {

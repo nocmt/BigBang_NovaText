@@ -92,6 +92,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
@@ -1815,6 +1816,7 @@ private fun PullActionOrderSection(
     val palette = LocalSettingsPalette.current
     val density = LocalDensity.current
     val dragThresholdPx = with(density) { 40.dp.toPx() }
+    var draggingIndex by remember { mutableIntStateOf(-1) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             text = stringResource(R.string.bigbang_pull_action_order_title),
@@ -1830,14 +1832,32 @@ private fun PullActionOrderSection(
         )
         actionOrder.forEachIndexed { index, action ->
             var accumulatedDrag = 0f
-            Row(
+            val dragging = draggingIndex == index
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(palette.cardInset)
+                    .graphicsLayer {
+                        scaleX = if (dragging) 1.025f else 1f
+                        scaleY = if (dragging) 1.025f else 1f
+                    },
+                shape = RoundedCornerShape(12.dp),
+                color = if (dragging) palette.card else palette.cardInset,
+                shadowElevation = if (dragging) 12.dp else 0.dp,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (dragging) palette.accent.copy(alpha = 0.45f) else palette.cardBorder,
+                ),
+            ) {
+                Row(
+                    modifier = Modifier
                     .pointerInput(actionOrder, index) {
                         detectVerticalDragGestures(
-                            onDragStart = { accumulatedDrag = 0f },
+                            onDragStart = {
+                                accumulatedDrag = 0f
+                                draggingIndex = index
+                            },
+                            onDragEnd = { draggingIndex = -1 },
+                            onDragCancel = { draggingIndex = -1 },
                             onVerticalDrag = { change, dragAmount ->
                                 change.consume()
                                 accumulatedDrag += dragAmount
@@ -1855,30 +1875,31 @@ private fun PullActionOrderSection(
                         )
                     }
                     .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(
-                    text = (index + 1).toString(),
-                    color = palette.textSecondary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.width(22.dp),
-                )
-                Text(
-                    text = stringResource(pullActionTitleRes(action)),
-                    color = palette.textPrimary,
-                    fontSize = 14.sp,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Icon(
-                    imageVector = Icons.Outlined.DragHandle,
-                    contentDescription = stringResource(R.string.bigbang_pull_action_drag_handle),
-                    tint = palette.textSecondary,
-                    modifier = Modifier.size(20.dp),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = (index + 1).toString(),
+                        color = palette.textSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.width(22.dp),
+                    )
+                    Text(
+                        text = stringResource(pullActionTitleRes(action)),
+                        color = palette.textPrimary,
+                        fontSize = 14.sp,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Icon(
+                        imageVector = Icons.Outlined.DragHandle,
+                        contentDescription = stringResource(R.string.bigbang_pull_action_drag_handle),
+                        tint = palette.textSecondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
     }

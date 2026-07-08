@@ -21,8 +21,10 @@ import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,11 +35,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -70,7 +72,6 @@ class BoomActivity : ComponentActivity() {
     private var manualOcrSourceToken: String? = null
     private var floatingBallHideToken: Int? = null
     private var animatedDismissRequester: (() -> Unit)? = null
-    private var adjacentAvailabilityRevision by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -109,7 +110,6 @@ class BoomActivity : ComponentActivity() {
                 manualOcrSourceToken = manualOcrSourceToken,
                 classicOverlayStyleEnabled = settings.isClassicOverlayStyleEnabled,
                 ocrRecognizerMode = settings.ocrRecognizerMode,
-                adjacentRevision = adjacentAvailabilityRevision,
                 onDismissRequesterChanged = { animatedDismissRequester = it },
                 onDismissRequest = { shouldDismissPage() },
                 onDismissFinished = { finish() },
@@ -270,7 +270,6 @@ class BoomActivity : ComponentActivity() {
         }
         currentText = text
         currentSegment = result
-        adjacentAvailabilityRevision += 1
     }
 
     private fun loadAdjacent(direction: String) {
@@ -312,7 +311,6 @@ class BoomActivity : ComponentActivity() {
                     TextSessionCoordinator.loadAdjacent(direction)
                     currentText = merged.text
                     currentSegment = merged.segment
-                    adjacentAvailabilityRevision += 1
                 }
             } catch (e: RuntimeException) {
                 LogUtils.e(TAG, "adjacent segmentation failed")
@@ -435,7 +433,6 @@ private fun BigBangOverlayContent(
     manualOcrSourceToken: String?,
     classicOverlayStyleEnabled: Boolean,
     ocrRecognizerMode: String,
-    adjacentRevision: Int,
     onDismissRequesterChanged: ((() -> Unit)?) -> Unit,
     onDismissRequest: () -> Boolean,
     onDismissFinished: () -> Unit,
@@ -494,12 +491,6 @@ private fun BigBangOverlayContent(
     val ocrEnabled = ocrSource != null
     val languageEnabled = ocrSource?.replayMode != null
     val activeOcrMode = ocrSource?.ocrMode ?: ocrRecognizerMode
-    val previousTextAvailable = remember(adjacentRevision) {
-        TextSessionCoordinator.peekAdjacentText(BoomEdgeActionPolicy.DIRECTION_BEFORE) != null
-    }
-    val nextTextAvailable = remember(adjacentRevision) {
-        TextSessionCoordinator.peekAdjacentText(BoomEdgeActionPolicy.DIRECTION_AFTER) != null
-    }
     var languageMenuExpanded by remember { mutableStateOf(false) }
     val languageOptions = listOf(
         stringResource(R.string.ocr_mode_chinese) to BigBangSettings.OCR_MODE_CHINESE,
@@ -617,36 +608,31 @@ private fun BigBangOverlayContent(
                             )
                         },
                         center = {
-                            OverlayIconAction(
-                                iconRes = R.drawable.boom_cancel,
-                                tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
-                                onClick = requestDismiss,
-                                contentDescription = stringResource(R.string.search_overlay_close),
-                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                OverlayIconAction(
+                                    iconRes = R.drawable.boom_cancel,
+                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                                    onClick = requestDismiss,
+                                    contentDescription = stringResource(R.string.search_overlay_close),
+                                )
+                                OverlayIconAction(
+                                    imageVector = Icons.Outlined.KeyboardArrowUp,
+                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                                    onClick = onPreviousText,
+                                    contentDescription = stringResource(R.string.bigbang_action_previous_text),
+                                )
+                                OverlayIconAction(
+                                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                                    onClick = onNextText,
+                                    contentDescription = stringResource(R.string.bigbang_action_next_text),
+                                )
+                            }
                         },
                         trailing = {
-                            OverlayIconAction(
-                                imageVector = Icons.Outlined.KeyboardArrowUp,
-                                tint = if (previousTextAvailable) {
-                                    if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
-                                } else {
-                                    if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
-                                },
-                                enabled = previousTextAvailable,
-                                onClick = onPreviousText,
-                                contentDescription = stringResource(R.string.bigbang_action_previous_text),
-                            )
-                            OverlayIconAction(
-                                imageVector = Icons.Outlined.KeyboardArrowDown,
-                                tint = if (nextTextAvailable) {
-                                    if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
-                                } else {
-                                    if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
-                                },
-                                enabled = nextTextAvailable,
-                                onClick = onNextText,
-                                contentDescription = stringResource(R.string.bigbang_action_next_text),
-                            )
                             Box {
                                 OverlayIconAction(
                                     imageVector = Icons.Outlined.Language,

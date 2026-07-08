@@ -309,6 +309,11 @@ public class BoomChipPage {
         mBoomActionHandler.onSelect(0, wordCount - 1);
     }
 
+    public boolean canSelectAll() {
+        return mLayout.getWordCount() > 0
+                && (mBoomActionHandler == null || !mBoomActionHandler.isAllSelected());
+    }
+
     public boolean selectContinuousDigits() {
         return selectMatches(DIGIT_PATTERN, false);
     }
@@ -550,25 +555,15 @@ public class BoomChipPage {
             return;
         }
         final String[] actionOrder = getPullActionOrder();
-        final String action = BoomEdgeActionPolicy.actionForEdgePull(
-                offset,
-                triggered,
-                mPullActionIndex,
-                actionOrder
-        );
-        if (BoomEdgeActionPolicy.ACTION_SELECT_ALL.equals(action)) {
-            selectAll();
-        } else if (BoomEdgeActionPolicy.ACTION_CANCEL_SELECTION.equals(action)) {
-            handleClick();
-        } else if (BoomEdgeActionPolicy.ACTION_SELECT_DIGITS.equals(action)) {
-            selectContinuousDigits();
-        } else if (BoomEdgeActionPolicy.ACTION_SELECT_EMAIL.equals(action)) {
-            selectEmails();
-        } else if (BoomEdgeActionPolicy.ACTION_SELECT_LINK.equals(action)) {
-            selectLinks();
-        }
-        if (!BoomEdgeActionPolicy.ACTION_NONE.equals(action)) {
-            mPullActionIndex = BoomEdgeActionPolicy.nextIndex(mPullActionIndex, actionOrder);
+        if (triggered && offset != 0f) {
+            int executableIndex = BoomEdgeActionPolicy.findNextExecutableIndex(
+                    mPullActionIndex,
+                    actionOrder,
+                    getExecutablePullActions(actionOrder)
+            );
+            if (executableIndex >= 0 && executePullAction(actionOrder[executableIndex])) {
+                mPullActionIndex = BoomEdgeActionPolicy.nextIndex(executableIndex, actionOrder);
+            }
         }
         finishAdjacentPull();
     }
@@ -594,12 +589,15 @@ public class BoomChipPage {
     }
 
     private String getPullActionHintTitle() {
-        String action = BoomEdgeActionPolicy.actionForEdgePull(
-                1f,
-                true,
+        String[] actionOrder = getPullActionOrder();
+        int executableIndex = BoomEdgeActionPolicy.findNextExecutableIndex(
                 mPullActionIndex,
-                getPullActionOrder()
+                actionOrder,
+                getExecutablePullActions(actionOrder)
         );
+        String action = executableIndex >= 0
+                ? actionOrder[executableIndex]
+                : BoomEdgeActionPolicy.actionForEdgePull(1f, true, mPullActionIndex, actionOrder);
         int titleRes = getPullActionTitleRes(action);
         return mActivity.getString(R.string.bigbang_pull_action_hint, mActivity.getString(titleRes));
     }
@@ -624,6 +622,45 @@ public class BoomChipPage {
         return BigBangSettings.get(mActivity).getBigBangPullActionOrderArray();
     }
 
+    private boolean[] getExecutablePullActions(String[] actionOrder) {
+        boolean[] executable = new boolean[actionOrder.length];
+        for (int i = 0; i < actionOrder.length; i++) {
+            String action = actionOrder[i];
+            if (BoomEdgeActionPolicy.ACTION_SELECT_ALL.equals(action)) {
+                executable[i] = canSelectAll();
+            } else if (BoomEdgeActionPolicy.ACTION_CANCEL_SELECTION.equals(action)) {
+                executable[i] = mBoomActionHandler != null && mBoomActionHandler.hasSelection();
+            } else if (BoomEdgeActionPolicy.ACTION_SELECT_DIGITS.equals(action)) {
+                executable[i] = hasMatch(DIGIT_PATTERN, false);
+            } else if (BoomEdgeActionPolicy.ACTION_SELECT_EMAIL.equals(action)) {
+                executable[i] = hasMatch(EMAIL_PATTERN, false);
+            } else if (BoomEdgeActionPolicy.ACTION_SELECT_LINK.equals(action)) {
+                executable[i] = hasMatch(BoomEdgeActionPolicy.LINK_PATTERN, true);
+            }
+        }
+        return executable;
+    }
+
+    private boolean executePullAction(String action) {
+        if (BoomEdgeActionPolicy.ACTION_SELECT_ALL.equals(action)) {
+            selectAll();
+            return true;
+        }
+        if (BoomEdgeActionPolicy.ACTION_CANCEL_SELECTION.equals(action)) {
+            return handleClick();
+        }
+        if (BoomEdgeActionPolicy.ACTION_SELECT_DIGITS.equals(action)) {
+            return selectContinuousDigits();
+        }
+        if (BoomEdgeActionPolicy.ACTION_SELECT_EMAIL.equals(action)) {
+            return selectEmails();
+        }
+        if (BoomEdgeActionPolicy.ACTION_SELECT_LINK.equals(action)) {
+            return selectLinks();
+        }
+        return false;
+    }
+
     private boolean selectMatches(Pattern pattern, boolean skipEmails) {
         if (mBoomActionHandler == null) {
             return false;
@@ -636,6 +673,7 @@ public class BoomChipPage {
                 continue;
             }
             addOverlappingWords(matchedWords, matcher.start(), matcher.end());
+            break;
         }
         if (mBoomActionHandler.hasSelection()) {
             mBoomActionHandler.handleClick();
@@ -645,6 +683,17 @@ public class BoomChipPage {
         }
         applySelection(matchedWords);
         return true;
+    }
+
+    private boolean hasMatch(Pattern pattern, boolean skipEmails) {
+        String text = mLayout.getOriText();
+        Matcher matcher = pattern.matcher(text);
+        while (matcher.find()) {
+            if (!skipEmails || !matcher.group().contains("@")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void addOverlappingWords(TreeSet<Integer> matchedWords, int start, int end) {
