@@ -18,15 +18,20 @@ import com.cashewteam.novatext.android.BoomWordsLayout;
 import com.cashewteam.novatext.android.BoomAnimator;
 import com.cashewteam.novatext.android.SwipeSelectView;
 import com.cashewteam.novatext.android.BoomActionHandler;
+import com.cashewteam.novatext.android.data.BigBangSettings;
 import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator;
 
 import java.io.Serializable;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class BoomChipPage {
     
     private final static String TAG = "BoomChipPage";
     private final static boolean DBG = BoomActivity.DBG;
+    private static final Pattern DIGIT_PATTERN = Pattern.compile("\\d{4,}");
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}");
 
     final BoomWordsLayout mLayout;
     final Activity mActivity;
@@ -50,6 +55,7 @@ public class BoomChipPage {
     private OnAdjacentRequestListener mOnAdjacentRequestListener;
     private boolean mAdjacentLoading;
     private float mAdjacentOffset;
+    private int mPullActionIndex;
 
     private int mTouchedX;
     private int mTouchedY;
@@ -303,6 +309,18 @@ public class BoomChipPage {
         mBoomActionHandler.onSelect(0, wordCount - 1);
     }
 
+    public boolean selectContinuousDigits() {
+        return selectMatches(DIGIT_PATTERN, false);
+    }
+
+    public boolean selectEmails() {
+        return selectMatches(EMAIL_PATTERN, false);
+    }
+
+    public boolean selectLinks() {
+        return selectMatches(BoomEdgeActionPolicy.LINK_PATTERN, true);
+    }
+
     public boolean splitSelectedWordsToChars() {
         if (mBoomActionHandler == null || !mBoomActionHandler.hasSelection()) {
             return false;
@@ -516,10 +534,10 @@ public class BoomChipPage {
         mAdjacentOffset = offset;
         applyContentOffset(offset);
         if (offset > 0f) {
-            showSelectAllHint(mAdjacentTopHint, offset);
+            showPullActionHint(mAdjacentTopHint, offset);
             hideAdjacentHint(mAdjacentBottomHint);
         } else if (offset < 0f) {
-            showSelectAllHint(mAdjacentBottomHint, -offset);
+            showPullActionHint(mAdjacentBottomHint, -offset);
             hideAdjacentHint(mAdjacentTopHint);
         } else {
             hideAdjacentHint(mAdjacentTopHint);
@@ -531,16 +549,33 @@ public class BoomChipPage {
         if (mAdjacentLoading) {
             return;
         }
-        final String action = BoomEdgeActionPolicy.actionForEdgePull(offset, triggered);
+        final String[] actionOrder = getPullActionOrder();
+        final String action = BoomEdgeActionPolicy.actionForEdgePull(
+                offset,
+                triggered,
+                mPullActionIndex,
+                actionOrder
+        );
         if (BoomEdgeActionPolicy.ACTION_SELECT_ALL.equals(action)) {
             selectAll();
+        } else if (BoomEdgeActionPolicy.ACTION_CANCEL_SELECTION.equals(action)) {
+            handleClick();
+        } else if (BoomEdgeActionPolicy.ACTION_SELECT_DIGITS.equals(action)) {
+            selectContinuousDigits();
+        } else if (BoomEdgeActionPolicy.ACTION_SELECT_EMAIL.equals(action)) {
+            selectEmails();
+        } else if (BoomEdgeActionPolicy.ACTION_SELECT_LINK.equals(action)) {
+            selectLinks();
+        }
+        if (!BoomEdgeActionPolicy.ACTION_NONE.equals(action)) {
+            mPullActionIndex = BoomEdgeActionPolicy.nextIndex(mPullActionIndex, actionOrder);
         }
         finishAdjacentPull();
     }
 
-    private void showSelectAllHint(TextView view, float distance) {
+    private void showPullActionHint(TextView view, float distance) {
         view.setVisibility(View.VISIBLE);
-        view.setText(mActivity.getString(R.string.bigbang_pull_select_all));
+        view.setText(getPullActionHintTitle());
         float alpha = Math.min(1f, distance / getTriggerDistance());
         view.setAlpha(alpha);
     }
@@ -556,6 +591,87 @@ public class BoomChipPage {
                 88f,
                 mActivity.getResources().getDisplayMetrics()
         );
+    }
+
+    private String getPullActionHintTitle() {
+        String action = BoomEdgeActionPolicy.actionForEdgePull(
+                1f,
+                true,
+                mPullActionIndex,
+                getPullActionOrder()
+        );
+        int titleRes = getPullActionTitleRes(action);
+        return mActivity.getString(R.string.bigbang_pull_action_hint, mActivity.getString(titleRes));
+    }
+
+    private int getPullActionTitleRes(String action) {
+        if (BoomEdgeActionPolicy.ACTION_CANCEL_SELECTION.equals(action)) {
+            return R.string.bigbang_pull_action_cancel_selection;
+        }
+        if (BoomEdgeActionPolicy.ACTION_SELECT_DIGITS.equals(action)) {
+            return R.string.bigbang_pull_action_select_digits;
+        }
+        if (BoomEdgeActionPolicy.ACTION_SELECT_EMAIL.equals(action)) {
+            return R.string.bigbang_pull_action_select_email;
+        }
+        if (BoomEdgeActionPolicy.ACTION_SELECT_LINK.equals(action)) {
+            return R.string.bigbang_pull_action_select_link;
+        }
+        return R.string.bigbang_pull_action_select_all;
+    }
+
+    private String[] getPullActionOrder() {
+        return BigBangSettings.get(mActivity).getBigBangPullActionOrderArray();
+    }
+
+    private boolean selectMatches(Pattern pattern, boolean skipEmails) {
+        if (mBoomActionHandler == null) {
+            return false;
+        }
+        TreeSet<Integer> matchedWords = new TreeSet<Integer>();
+        String text = mLayout.getOriText();
+        Matcher matcher = pattern.matcher(text);
+        while (matcher.find()) {
+            if (skipEmails && matcher.group().contains("@")) {
+                continue;
+            }
+            addOverlappingWords(matchedWords, matcher.start(), matcher.end());
+        }
+        if (mBoomActionHandler.hasSelection()) {
+            mBoomActionHandler.handleClick();
+        }
+        if (matchedWords.isEmpty()) {
+            return false;
+        }
+        applySelection(matchedWords);
+        return true;
+    }
+
+    private void addOverlappingWords(TreeSet<Integer> matchedWords, int start, int end) {
+        for (int i = 0; i < mLayout.getWordCount(); i++) {
+            int wordStart = mLayout.getWordStart(i);
+            int wordEnd = mLayout.getWordEnd(i);
+            if (wordStart < end && wordEnd > start) {
+                matchedWords.add(i);
+            }
+        }
+    }
+
+    private void applySelection(TreeSet<Integer> selectedWords) {
+        for (int i = 0; i < mLayout.getRowCount(); ++i) {
+            final LinearLayout row = getChipRow(i);
+            if (row == null) {
+                continue;
+            }
+            for (int j = 0; j < row.getChildCount(); ++j) {
+                View child = row.getChildAt(j);
+                if (child.getTag() instanceof BoomChip) {
+                    BoomChip chip = (BoomChip) child.getTag();
+                    chip.setSelected(selectedWords.contains(chip.index));
+                }
+            }
+        }
+        mBoomActionHandler.onSelect(selectedWords);
     }
 
     private void applyContentOffset(float offset) {

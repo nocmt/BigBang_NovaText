@@ -24,6 +24,7 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,6 +49,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -99,6 +101,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -182,6 +185,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallHiddenChange = { updateFloatingBallHidden(it) },
                     onFloatingBallLandscapeSafeAreaChange = { updateFloatingBallLandscapeSafeArea(it) },
                     onFloatingBallTriggerModeChange = { updateFloatingBallTriggerMode(it) },
+                    onBigBangPullActionOrderChange = { updateBigBangPullActionOrder(it) },
                     onAdaptiveLauncherIconChange = { updateAdaptiveLauncherIcon(it) },
                     onClassicOverlayStyleChange = { updateClassicOverlayStyle(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
@@ -316,6 +320,10 @@ class TextBoomSettingsActivity : ComponentActivity() {
     private fun updateFloatingBallTriggerMode(mode: Int) {
         settings.setFloatingBallTriggerMode(mode)
         FloatingBallService.refreshAppearance(this)
+    }
+
+    private fun updateBigBangPullActionOrder(order: List<String>) {
+        settings.setBigBangPullActionOrder(BoomEdgeActionPolicy.joinActionOrder(order.toTypedArray()))
     }
 
     private fun updateAdaptiveLauncherIcon(enabled: Boolean) {
@@ -566,6 +574,7 @@ private fun SettingsScreen(
     onFloatingBallHiddenChange: (Boolean) -> Unit,
     onFloatingBallLandscapeSafeAreaChange: (Boolean) -> Unit,
     onFloatingBallTriggerModeChange: (Int) -> Unit,
+    onBigBangPullActionOrderChange: (List<String>) -> Unit,
     onAdaptiveLauncherIconChange: (Boolean) -> Unit,
     onClassicOverlayStyleChange: (Boolean) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
@@ -645,6 +654,9 @@ private fun SettingsScreen(
     }
     var floatingBallTriggerMode by rememberSaveable {
         mutableIntStateOf(settings.floatingBallTriggerMode)
+    }
+    var bigBangPullActionOrder by rememberSaveable {
+        mutableStateOf(settings.bigBangPullActionOrderArray.toList())
     }
     var adaptiveLauncherIconEnabled by rememberSaveable {
         mutableStateOf(settings.isAdaptiveLauncherIconEnabled)
@@ -840,6 +852,18 @@ private fun SettingsScreen(
                             onFloatingBallTriggerModeChange = {
                                 floatingBallTriggerMode = it
                                 onFloatingBallTriggerModeChange(it)
+                            },
+                        )
+                    }
+                }
+
+                item {
+                    SettingsSectionCard {
+                        PullActionOrderSection(
+                            actionOrder = bigBangPullActionOrder,
+                            onActionOrderChange = {
+                                bigBangPullActionOrder = it
+                                onBigBangPullActionOrderChange(it)
                             },
                         )
                     }
@@ -1780,6 +1804,103 @@ private fun DebugSwitchRow(
                 ),
             )
         }
+    }
+}
+
+@Composable
+private fun PullActionOrderSection(
+    actionOrder: List<String>,
+    onActionOrderChange: (List<String>) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    val density = LocalDensity.current
+    val dragThresholdPx = with(density) { 40.dp.toPx() }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = stringResource(R.string.bigbang_pull_action_order_title),
+            color = palette.textPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.bigbang_pull_action_order_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        actionOrder.forEachIndexed { index, action ->
+            var accumulatedDrag = 0f
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(palette.cardInset)
+                    .pointerInput(actionOrder, index) {
+                        detectVerticalDragGestures(
+                            onDragStart = { accumulatedDrag = 0f },
+                            onVerticalDrag = { change, dragAmount ->
+                                change.consume()
+                                accumulatedDrag += dragAmount
+                                when {
+                                    accumulatedDrag > dragThresholdPx && index < actionOrder.lastIndex -> {
+                                        onActionOrderChange(actionOrder.moveItem(index, index + 1))
+                                        accumulatedDrag = 0f
+                                    }
+                                    accumulatedDrag < -dragThresholdPx && index > 0 -> {
+                                        onActionOrderChange(actionOrder.moveItem(index, index - 1))
+                                        accumulatedDrag = 0f
+                                    }
+                                }
+                            },
+                        )
+                    }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = (index + 1).toString(),
+                    color = palette.textSecondary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.width(22.dp),
+                )
+                Text(
+                    text = stringResource(pullActionTitleRes(action)),
+                    color = palette.textPrimary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    imageVector = Icons.Outlined.DragHandle,
+                    contentDescription = stringResource(R.string.bigbang_pull_action_drag_handle),
+                    tint = palette.textSecondary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+private fun List<String>.moveItem(from: Int, to: Int): List<String> {
+    if (from == to || from !in indices || to !in indices) {
+        return this
+    }
+    return toMutableList().also { list ->
+        val item = list.removeAt(from)
+        list.add(to, item)
+    }
+}
+
+private fun pullActionTitleRes(action: String): Int {
+    return when (action) {
+        BoomEdgeActionPolicy.ACTION_CANCEL_SELECTION -> R.string.bigbang_pull_action_cancel_selection
+        BoomEdgeActionPolicy.ACTION_SELECT_DIGITS -> R.string.bigbang_pull_action_select_digits
+        BoomEdgeActionPolicy.ACTION_SELECT_EMAIL -> R.string.bigbang_pull_action_select_email
+        BoomEdgeActionPolicy.ACTION_SELECT_LINK -> R.string.bigbang_pull_action_select_link
+        else -> R.string.bigbang_pull_action_select_all
     }
 }
 

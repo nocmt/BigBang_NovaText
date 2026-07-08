@@ -89,6 +89,14 @@
     <string name="permission_floating_ball_hidden_summary">静置时隐藏胶囊背景和圆球，仅保留蓝色指示条，触控区域不变</string>
     <string name="permission_floating_ball_landscape_safe_area_title">横屏安全区</string>
     <string name="permission_floating_ball_landscape_safe_area_summary">关闭后横屏下悬浮球可在屏幕完整宽度内自由拖动，适合平板</string>
+    <string name="bigbang_pull_action_order_title">下拉动作顺序</string>
+    <string name="bigbang_pull_action_order_summary">下拉大爆炸内容区会按这个顺序循环执行。按住右侧手柄上下拖动即可调整顺序。</string>
+    <string name="bigbang_pull_action_drag_handle">拖拽调整顺序</string>
+    <string name="bigbang_pull_action_cancel_selection">取消选择</string>
+    <string name="bigbang_pull_action_select_all">全选</string>
+    <string name="bigbang_pull_action_select_digits">连续数字</string>
+    <string name="bigbang_pull_action_select_email">邮箱</string>
+    <string name="bigbang_pull_action_select_link">链接</string>
     <string name="ocr_section_title">OCR 识别</string>
     <string name="ocr_section_summary">使用离线 ML Kit V2 识别图片文字，并直接进入大爆炸。当前提供中文、日语、韩语和英语四种识别模式。</string>
     <string name="ocr_mode_chinese">中文</string>
@@ -143,7 +151,7 @@
     <string name="bigbang_action_previous_text">上句</string>
     <string name="bigbang_action_next_text">下句</string>
     <string name="bigbang_action_placeholder">功能建设中</string>
-    <string name="bigbang_pull_select_all">松手后全选文本</string>
+    <string name="bigbang_pull_action_hint">松手后%1$s</string>
     <string name="bigbang_adjacent_unavailable">没有可追加的相邻文本</string>
     <string name="about_title">关于</string>
     <string name="about_description">Nova Text 是 Smartisan OS「大爆炸」功能的现代化重制版，提供屏幕文本提取、OCR 识别、分词处理与快捷搜索，兼容 Android 7+ 设备。</string>

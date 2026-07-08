@@ -77,8 +77,16 @@
     <string name="bigbang_action_language">语言</string>
     <string name="bigbang_action_previous_text">上句</string>
     <string name="bigbang_action_next_text">下句</string>
-    <string name="bigbang_pull_select_all">松手后全选文本</string>
+    <string name="bigbang_pull_action_hint">松手后%1$s</string>
     <string name="bigbang_adjacent_unavailable">没有可追加的相邻文本</string>
+    <string name="bigbang_pull_action_order_title">下拉动作顺序</string>
+    <string name="bigbang_pull_action_order_summary">下拉大爆炸内容区会按这个顺序循环执行。按住右侧手柄上下拖动即可调整顺序。</string>
+    <string name="bigbang_pull_action_drag_handle">拖拽调整顺序</string>
+    <string name="bigbang_pull_action_cancel_selection">取消选择</string>
+    <string name="bigbang_pull_action_select_all">全选</string>
+    <string name="bigbang_pull_action_select_digits">连续数字</string>
+    <string name="bigbang_pull_action_select_email">邮箱</string>
+    <string name="bigbang_pull_action_select_link">链接</string>
     <string name="permission_floating_ball_trigger_mode_title">触发方式</string>
     <string name="permission_floating_ball_trigger_click">点击</string>
     <string name="permission_floating_ball_trigger_double_click">双击</string>

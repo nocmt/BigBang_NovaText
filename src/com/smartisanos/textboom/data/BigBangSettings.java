@@ -3,6 +3,7 @@ package com.cashewteam.novatext.android.data;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.cashewteam.novatext.android.BoomEdgeActionPolicy;
 import com.cashewteam.novatext.android.FloatingBallTriggerPolicy;
 
 import java.util.HashSet;
@@ -32,6 +33,7 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_HIDDEN = "floating_ball_hidden";
     public static final String KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA = "floating_ball_landscape_safe_area";
     public static final String KEY_FLOATING_BALL_TRIGGER_MODE = "floating_ball_trigger_mode";
+    public static final String KEY_BIGBANG_PULL_ACTION_ORDER = "bigbang_pull_action_order";
     public static final String KEY_ADAPTIVE_LAUNCHER_ICON = "adaptive_launcher_icon";
     public static final String KEY_CLASSIC_OVERLAY_STYLE = "classic_overlay_style";
 
@@ -280,6 +282,23 @@ public final class BigBangSettings {
     public void setFloatingBallTriggerMode(int value) {
         preferences.edit()
                 .putInt(KEY_FLOATING_BALL_TRIGGER_MODE, FloatingBallTriggerPolicy.normalize(value))
+                .apply();
+    }
+
+    public String getBigBangPullActionOrder() {
+        return BoomEdgeActionPolicy.normalizeActionOrderString(preferences.getString(
+                KEY_BIGBANG_PULL_ACTION_ORDER,
+                BoomEdgeActionPolicy.defaultActionOrderString()
+        ));
+    }
+
+    public String[] getBigBangPullActionOrderArray() {
+        return BoomEdgeActionPolicy.parseActionOrder(getBigBangPullActionOrder());
+    }
+
+    public void setBigBangPullActionOrder(String value) {
+        preferences.edit()
+                .putString(KEY_BIGBANG_PULL_ACTION_ORDER, BoomEdgeActionPolicy.normalizeActionOrderString(value))
                 .apply();
     }
 
