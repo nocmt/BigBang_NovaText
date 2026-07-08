@@ -113,6 +113,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.withStyle
@@ -192,6 +194,11 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallTriggerModeChange = { updateFloatingBallTriggerMode(it) },
                     onBigBangPullActionOrderChange = { updateBigBangPullActionOrder(it) },
                     onContextAppendActionsChange = { updateContextAppendActions(it) },
+                    onTranslationApiUrlChange = { updateTranslationApiUrl(it) },
+                    onTranslationApiKeyChange = { updateTranslationApiKey(it) },
+                    onTranslationModelChange = { updateTranslationModel(it) },
+                    onTranslationPromptTemplateChange = { updateTranslationPromptTemplate(it) },
+                    onTranslationTargetLanguageChange = { updateTranslationTargetLanguage(it) },
                     onAdaptiveLauncherIconChange = { updateAdaptiveLauncherIcon(it) },
                     onClassicOverlayStyleChange = { updateClassicOverlayStyle(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
@@ -336,6 +343,26 @@ class TextBoomSettingsActivity : ComponentActivity() {
         settings.setContextAppendActionsEnabled(enabled)
     }
 
+    private fun updateTranslationApiUrl(value: String) {
+        settings.setTranslationApiUrl(value)
+    }
+
+    private fun updateTranslationApiKey(value: String) {
+        settings.setTranslationApiKey(value)
+    }
+
+    private fun updateTranslationModel(value: String) {
+        settings.setTranslationModel(value)
+    }
+
+    private fun updateTranslationPromptTemplate(value: String) {
+        settings.setTranslationPromptTemplate(value)
+    }
+
+    private fun updateTranslationTargetLanguage(value: String) {
+        settings.setTranslationTargetLanguage(value)
+    }
+
     private fun updateAdaptiveLauncherIcon(enabled: Boolean) {
         LauncherIconManager.setAdaptiveEnabled(this, enabled)
     }
@@ -398,6 +425,7 @@ private enum class SettingsPage {
 private enum class MainSettingsTab {
     Entry,
     Recognition,
+    Translation,
     Search,
     Debug,
 }
@@ -593,6 +621,11 @@ private fun SettingsScreen(
     onFloatingBallTriggerModeChange: (Int) -> Unit,
     onBigBangPullActionOrderChange: (List<String>) -> Unit,
     onContextAppendActionsChange: (Boolean) -> Unit,
+    onTranslationApiUrlChange: (String) -> Unit,
+    onTranslationApiKeyChange: (String) -> Unit,
+    onTranslationModelChange: (String) -> Unit,
+    onTranslationPromptTemplateChange: (String) -> Unit,
+    onTranslationTargetLanguageChange: (String) -> Unit,
     onAdaptiveLauncherIconChange: (Boolean) -> Unit,
     onClassicOverlayStyleChange: (Boolean) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
@@ -679,6 +712,21 @@ private fun SettingsScreen(
     }
     var contextAppendActionsEnabled by rememberSaveable {
         mutableStateOf(settings.isContextAppendActionsEnabled)
+    }
+    var translationApiUrl by rememberSaveable {
+        mutableStateOf(settings.translationApiUrl)
+    }
+    var translationApiKey by rememberSaveable {
+        mutableStateOf(settings.translationApiKey)
+    }
+    var translationModel by rememberSaveable {
+        mutableStateOf(settings.translationModel)
+    }
+    var translationPromptTemplate by rememberSaveable {
+        mutableStateOf(settings.translationPromptTemplate)
+    }
+    var translationTargetLanguage by rememberSaveable {
+        mutableStateOf(settings.translationTargetLanguage)
     }
     var adaptiveLauncherIconEnabled by rememberSaveable {
         mutableStateOf(settings.isAdaptiveLauncherIconEnabled)
@@ -1005,6 +1053,40 @@ private fun SettingsScreen(
                             }
                         }
 
+                        if (selectedMainTab == MainSettingsTab.Translation.name) {
+                            item {
+                                SettingsSectionCard {
+                                    TranslationSection(
+                                        apiUrl = translationApiUrl,
+                                        apiKey = translationApiKey,
+                                        model = translationModel,
+                                        promptTemplate = translationPromptTemplate,
+                                        targetLanguage = translationTargetLanguage,
+                                        onApiUrlChange = {
+                                            translationApiUrl = it
+                                            onTranslationApiUrlChange(it)
+                                        },
+                                        onApiKeyChange = {
+                                            translationApiKey = it
+                                            onTranslationApiKeyChange(it)
+                                        },
+                                        onModelChange = {
+                                            translationModel = it
+                                            onTranslationModelChange(it)
+                                        },
+                                        onPromptTemplateChange = {
+                                            translationPromptTemplate = it
+                                            onTranslationPromptTemplateChange(it)
+                                        },
+                                        onTargetLanguageChange = {
+                                            translationTargetLanguage = it
+                                            onTranslationTargetLanguageChange(it)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
                         if (selectedMainTab == MainSettingsTab.Debug.name) {
                             item {
                                 SettingsSectionCard {
@@ -1077,6 +1159,7 @@ private fun MainSettingsTabs(
     val tabs = listOf(
         MainSettingsTab.Entry to stringResource(R.string.settings_tab_entry),
         MainSettingsTab.Recognition to stringResource(R.string.settings_tab_recognition),
+        MainSettingsTab.Translation to stringResource(R.string.settings_tab_translation),
         MainSettingsTab.Search to stringResource(R.string.settings_tab_search),
         MainSettingsTab.Debug to stringResource(R.string.settings_tab_debug),
     )
@@ -1138,6 +1221,118 @@ private fun BigBangBehaviorSection(
             onCheckedChange = onContextAppendActionsChange,
         )
     }
+}
+
+@Composable
+private fun TranslationSection(
+    apiUrl: String,
+    apiKey: String,
+    model: String,
+    promptTemplate: String,
+    targetLanguage: String,
+    onApiUrlChange: (String) -> Unit,
+    onApiKeyChange: (String) -> Unit,
+    onModelChange: (String) -> Unit,
+    onPromptTemplateChange: (String) -> Unit,
+    onTargetLanguageChange: (String) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = stringResource(R.string.translation_section_title),
+            color = palette.textPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.translation_section_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        SettingsTextField(
+            value = apiUrl,
+            onValueChange = onApiUrlChange,
+            label = stringResource(R.string.translation_api_url_title),
+            singleLine = true,
+        )
+        SettingsTextField(
+            value = apiKey,
+            onValueChange = onApiKeyChange,
+            label = stringResource(R.string.translation_api_key_title),
+            singleLine = true,
+            password = true,
+        )
+        SettingsTextField(
+            value = model,
+            onValueChange = onModelChange,
+            label = stringResource(R.string.translation_model_title),
+            singleLine = true,
+        )
+        SettingsTextField(
+            value = targetLanguage,
+            onValueChange = onTargetLanguageChange,
+            label = stringResource(R.string.translation_default_target_title),
+            singleLine = true,
+        )
+        SettingsTextField(
+            value = promptTemplate,
+            onValueChange = onPromptTemplateChange,
+            label = stringResource(R.string.translation_prompt_title),
+            minLines = 3,
+            maxLines = 6,
+        )
+        Text(
+            text = stringResource(R.string.translation_prompt_summary),
+            color = palette.textSecondary,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
+    }
+}
+
+@Composable
+private fun SettingsTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    singleLine: Boolean = false,
+    minLines: Int = 1,
+    maxLines: Int = if (singleLine) 1 else 4,
+    password: Boolean = false,
+) {
+    val palette = LocalSettingsPalette.current
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        label = { Text(text = label) },
+        singleLine = singleLine,
+        minLines = minLines,
+        maxLines = maxLines,
+        visualTransformation = if (password) {
+            PasswordVisualTransformation()
+        } else {
+            VisualTransformation.None
+        },
+        textStyle = MaterialTheme.typography.bodyLarge.copy(
+            color = palette.textPrimary,
+            lineHeight = 23.sp,
+        ),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = palette.cardInset,
+            unfocusedContainerColor = palette.cardInset,
+            disabledContainerColor = palette.cardInset,
+            focusedIndicatorColor = palette.accent,
+            unfocusedIndicatorColor = palette.cardBorder,
+            cursorColor = palette.accent,
+            focusedTextColor = palette.textPrimary,
+            unfocusedTextColor = palette.textPrimary,
+            focusedLabelColor = palette.accent,
+            unfocusedLabelColor = palette.textSecondary,
+        ),
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

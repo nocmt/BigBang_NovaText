@@ -11,14 +11,19 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,17 +43,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.core.view.WindowCompat
@@ -70,6 +81,7 @@ class BoomActivity : ComponentActivity() {
     private var manualOcrSourceToken: String? = null
     private var floatingBallHideToken: Int? = null
     private var animatedDismissRequester: (() -> Unit)? = null
+    private var translationInProgress by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -107,17 +119,22 @@ class BoomActivity : ComponentActivity() {
                 touchY = launchTouchY,
                 manualOcrSourceToken = manualOcrSourceToken,
                 classicOverlayStyleEnabled = settings.isClassicOverlayStyleEnabled,
-                ocrRecognizerMode = settings.ocrRecognizerMode,
                 contextAppendActionsEnabled = settings.isContextAppendActionsEnabled,
+                translationInProgress = translationInProgress,
+                defaultTranslationTarget = settings.translationTargetLanguage,
+                currentTextProvider = { currentText },
                 onDismissRequesterChanged = { animatedDismissRequester = it },
                 onDismissRequest = { shouldDismissPage() },
                 onDismissFinished = { finish() },
                 onOcr = { reopenManualOcr() },
-                onLanguageSelected = { rerunOcrWithLanguage(it) },
-                onEditMode = { showPlaceholder() },
+                onTranslate = {
+                    settings.setTranslationTargetLanguage(it)
+                    translateCurrentText(it)
+                },
+                onEditedTextCommitted = { replaceCurrentText(it) },
                 onSelectAll = { selectAll() },
                 onShareAll = { shareAll() },
-                onMore = { showPlaceholder() },
+                onOpenSettings = { openSettings() },
                 onPreviousText = { requestAdjacent(BoomEdgeActionPolicy.DIRECTION_BEFORE) },
                 onNextText = { requestAdjacent(BoomEdgeActionPolicy.DIRECTION_AFTER) },
             )
@@ -199,8 +216,84 @@ class BoomActivity : ComponentActivity() {
         }
     }
 
-    private fun showPlaceholder() {
-        Toast.makeText(this, R.string.bigbang_action_placeholder, Toast.LENGTH_SHORT).show()
+    private fun openSettings() {
+        startActivity(Intent(this, TextBoomSettingsActivity::class.java))
+    }
+
+    private fun translateCurrentText(targetLanguage: String) {
+        if (translationInProgress) {
+            return
+        }
+        val apiKey = settings.translationApiKey.trim()
+        if (apiKey.isEmpty()) {
+            Toast.makeText(this, R.string.bigbang_translate_config_required, Toast.LENGTH_SHORT).show()
+            openSettings()
+            return
+        }
+        val sourceText = currentText.ifBlank { boomChipPage?.originalText.orEmpty() }.trim()
+        if (sourceText.isEmpty()) {
+            Toast.makeText(this, R.string.bigbang_edit_empty_text, Toast.LENGTH_SHORT).show()
+            return
+        }
+        translationInProgress = true
+        Toast.makeText(this, R.string.bigbang_translate_started, Toast.LENGTH_SHORT).show()
+        Thread {
+            try {
+                val translated = InlineTranslationClient.translate(
+                    sourceText,
+                    targetLanguage,
+                    settings.translationApiUrl,
+                    apiKey,
+                    settings.translationModel,
+                    settings.translationPromptTemplate,
+                )
+                runOnUiThread {
+                    translationInProgress = false
+                    replaceCurrentText(translated)
+                }
+            } catch (e: Exception) {
+                LogUtils.e(TAG, "inline translation failed")
+                LogUtils.e(e.message, e)
+                runOnUiThread {
+                    translationInProgress = false
+                    Toast.makeText(this, R.string.bigbang_translate_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun replaceCurrentText(text: String) {
+        val nextText = text.trim()
+        if (nextText.isEmpty()) {
+            Toast.makeText(this, R.string.bigbang_edit_empty_text, Toast.LENGTH_SHORT).show()
+            return
+        }
+        Thread {
+            try {
+                val result = CppJiebaTokenizer.get(this).segment(nextText)
+                runOnUiThread {
+                    if (isFinishing) {
+                        return@runOnUiThread
+                    }
+                    if (result == null || result.isEmpty()) {
+                        Toast.makeText(this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show()
+                        return@runOnUiThread
+                    }
+                    if (boomChipPage?.replaceWords(result, nextText, -1) == true) {
+                        currentText = nextText
+                        currentSegment = result
+                    } else {
+                        Toast.makeText(this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: RuntimeException) {
+                LogUtils.e(TAG, "replace text segmentation failed")
+                LogUtils.e(e.message, e)
+                runOnUiThread {
+                    Toast.makeText(this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
     }
 
     private fun reopenManualOcr() {
@@ -215,19 +308,6 @@ class BoomActivity : ComponentActivity() {
             offsetX = source.offsetX,
             offsetY = source.offsetY,
             manualOcrSourceToken = source.token,
-        )
-    }
-
-    private fun rerunOcrWithLanguage(mode: String) {
-        val source = ManualOcrSourceStore.get(manualOcrSourceToken) ?: return
-        val replayMode = source.replayMode ?: return
-        BoomOcrLauncher.replayWithLanguage(
-            context = this,
-            sourceToken = source.token,
-            touchX = source.touchX,
-            touchY = source.touchY,
-            mode = mode,
-            replayMode = replayMode,
         )
     }
 
@@ -401,7 +481,7 @@ class BoomActivity : ComponentActivity() {
         val punctuations: List<Int>,
     )
 
-    private data class SegmentedText(
+private data class SegmentedText(
         val text: String,
         val segment: IntArray,
         val targetWordIndex: Int,
@@ -431,6 +511,11 @@ class BoomActivity : ComponentActivity() {
     }
 }
 
+private data class TranslationLanguage(
+    val code: String,
+    val name: String,
+)
+
 @Composable
 private fun BigBangOverlayContent(
     contentView: View,
@@ -438,17 +523,19 @@ private fun BigBangOverlayContent(
     touchY: Int,
     manualOcrSourceToken: String?,
     classicOverlayStyleEnabled: Boolean,
-    ocrRecognizerMode: String,
     contextAppendActionsEnabled: Boolean,
+    translationInProgress: Boolean,
+    defaultTranslationTarget: String,
+    currentTextProvider: () -> String,
     onDismissRequesterChanged: ((() -> Unit)?) -> Unit,
     onDismissRequest: () -> Boolean,
     onDismissFinished: () -> Unit,
     onOcr: () -> Unit,
-    onLanguageSelected: (String) -> Unit,
-    onEditMode: () -> Unit,
+    onTranslate: (String) -> Unit,
+    onEditedTextCommitted: (String) -> Unit,
     onSelectAll: () -> Unit,
     onShareAll: () -> Unit,
-    onMore: () -> Unit,
+    onOpenSettings: () -> Unit,
     onPreviousText: () -> Unit,
     onNextText: () -> Unit,
 ) {
@@ -496,20 +583,74 @@ private fun BigBangOverlayContent(
         ManualOcrSourceStore.get(manualOcrSourceToken)
     }
     val ocrEnabled = ocrSource != null
-    val languageEnabled = ocrSource?.replayMode != null
-    val activeOcrMode = ocrSource?.ocrMode ?: ocrRecognizerMode
-    var languageMenuExpanded by remember { mutableStateOf(false) }
-    val languageOptions = listOf(
-        stringResource(R.string.ocr_mode_chinese) to BigBangSettings.OCR_MODE_CHINESE,
-        stringResource(R.string.ocr_mode_japanese) to BigBangSettings.OCR_MODE_JAPANESE,
-        stringResource(R.string.ocr_mode_korean) to BigBangSettings.OCR_MODE_KOREAN,
-        stringResource(R.string.ocr_mode_latin) to BigBangSettings.OCR_MODE_LATIN,
-    )
+    val focusManager = LocalFocusManager.current
+    val editFocusRequester = remember { FocusRequester() }
+    var editing by remember { mutableStateOf(false) }
+    var editText by remember { mutableStateOf("") }
+    var editHadFocus by remember { mutableStateOf(false) }
+    var translationMenuExpanded by remember { mutableStateOf(false) }
+    val translationLanguages = remember(defaultTranslationTarget) {
+        val languages = listOf(
+            TranslationLanguage("zh", "中文"),
+            TranslationLanguage("en", "英语"),
+            TranslationLanguage("ja", "日语"),
+            TranslationLanguage("ko", "韩语"),
+            TranslationLanguage("zh-Hant", "繁体中文"),
+            TranslationLanguage("fr", "法语"),
+            TranslationLanguage("pt", "葡萄牙语"),
+            TranslationLanguage("es", "西班牙语"),
+            TranslationLanguage("tr", "土耳其语"),
+            TranslationLanguage("ru", "俄语"),
+            TranslationLanguage("ar", "阿拉伯语"),
+            TranslationLanguage("th", "泰语"),
+            TranslationLanguage("it", "意大利语"),
+            TranslationLanguage("de", "德语"),
+            TranslationLanguage("vi", "越南语"),
+            TranslationLanguage("ms", "马来语"),
+            TranslationLanguage("id", "印尼语"),
+            TranslationLanguage("tl", "菲律宾语"),
+            TranslationLanguage("hi", "印地语"),
+            TranslationLanguage("pl", "波兰语"),
+            TranslationLanguage("cs", "捷克语"),
+            TranslationLanguage("nl", "荷兰语"),
+            TranslationLanguage("km", "高棉语"),
+            TranslationLanguage("my", "缅甸语"),
+            TranslationLanguage("fa", "波斯语"),
+            TranslationLanguage("gu", "古吉拉特语"),
+            TranslationLanguage("ur", "乌尔都语"),
+            TranslationLanguage("te", "泰卢固语"),
+            TranslationLanguage("mr", "马拉地语"),
+            TranslationLanguage("he", "希伯来语"),
+            TranslationLanguage("bn", "孟加拉语"),
+            TranslationLanguage("ta", "泰米尔语"),
+            TranslationLanguage("uk", "乌克兰语"),
+            TranslationLanguage("bo", "藏语"),
+            TranslationLanguage("kk", "哈萨克语"),
+            TranslationLanguage("mn", "蒙古语"),
+            TranslationLanguage("ug", "维吾尔语"),
+            TranslationLanguage("yue", "粤语"),
+        )
+        languages.sortedBy { if (it.name == defaultTranslationTarget) 0 else 1 }
+    }
+    val commitEditedText = {
+        if (editing) {
+            editing = false
+            editHadFocus = false
+            onEditedTextCommitted(editText)
+        }
+    }
     val requestDismiss = {
         if (!dismissing && onDismissRequest()) {
-            languageMenuExpanded = false
+            translationMenuExpanded = false
             dismissing = true
             panelVisible = false
+        }
+    }
+    val requestBlankClick = {
+        if (editing) {
+            focusManager.clearFocus()
+        } else {
+            requestDismiss()
         }
     }
 
@@ -524,13 +665,13 @@ private fun BigBangOverlayContent(
         panelVisible = true
     }
 
-    BackHandler(onBack = requestDismiss)
+    BackHandler(onBack = requestBlankClick)
     ApplyOverlaySystemBars(
         statusBarColor = if (panelMetrics.fullScreen) topBarColor else Color.Transparent,
         navigationBarColor = if (panelMetrics.fullScreen) bottomBarColor else Color.Transparent,
         darkIcons = !dark,
     )
-    OverlayScene(scrimColor = scrimColor.copy(alpha = scrimColor.alpha * scrimProgress), onDismiss = requestDismiss) {
+    OverlayScene(scrimColor = scrimColor.copy(alpha = scrimColor.alpha * scrimProgress), onDismiss = requestBlankClick) {
         FloatingPanel(
             width = panelMetrics.width,
             height = panelMetrics.height,
@@ -559,10 +700,23 @@ private fun BigBangOverlayContent(
                         rightInset = panelMetrics.rightSystemInset,
                         leading = {
                             OverlayIconAction(
-                                imageVector = Icons.Outlined.Edit,
+                                imageVector = if (editing) Icons.Outlined.Check else Icons.Outlined.Edit,
                                 tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
-                                onClick = onEditMode,
-                                contentDescription = stringResource(R.string.bigbang_action_edit),
+                                onClick = {
+                                    if (editing) {
+                                        commitEditedText()
+                                    } else {
+                                        editText = currentTextProvider()
+                                        editing = true
+                                    }
+                                },
+                                contentDescription = stringResource(
+                                    if (editing) {
+                                        R.string.bigbang_edit_done
+                                    } else {
+                                        R.string.bigbang_action_edit
+                                    }
+                                ),
                             )
                             OverlayIconAction(
                                 imageVector = Icons.Outlined.SelectAll,
@@ -587,10 +741,10 @@ private fun BigBangOverlayContent(
                                 contentDescription = stringResource(R.string.bigbang_action_share_all),
                             )
                             OverlayIconAction(
-                                imageVector = Icons.Outlined.MoreHoriz,
+                                imageVector = Icons.Outlined.Settings,
                                 tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
-                                onClick = onMore,
-                                contentDescription = stringResource(R.string.bigbang_action_more),
+                                onClick = onOpenSettings,
+                                contentDescription = stringResource(R.string.text_boom_settings),
                             )
                         },
                     )
@@ -644,34 +798,33 @@ private fun BigBangOverlayContent(
                         trailing = {
                             Box {
                                 OverlayIconAction(
-                                    imageVector = Icons.Outlined.Language,
-                                    tint = if (languageEnabled) {
-                                        if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
-                                    } else {
+                                    imageVector = Icons.Outlined.Translate,
+                                    tint = if (translationInProgress) {
                                         if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
+                                    } else {
+                                        if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
                                     },
-                                    enabled = languageEnabled,
-                                    onClick = { languageMenuExpanded = true },
-                                    contentDescription = stringResource(R.string.bigbang_action_language),
+                                    enabled = !translationInProgress,
+                                    onClick = { translationMenuExpanded = true },
+                                    contentDescription = stringResource(R.string.bigbang_action_translate),
                                 )
                                 DropdownMenu(
-                                    expanded = languageMenuExpanded,
-                                    onDismissRequest = { languageMenuExpanded = false },
+                                    expanded = translationMenuExpanded,
+                                    onDismissRequest = { translationMenuExpanded = false },
                                     containerColor = if (dark) Color(0xFF20252B) else Color.White,
                                 ) {
-                                    languageOptions.forEach { (title, value) ->
+                                    translationLanguages.forEach { language ->
                                         DropdownMenuItem(
                                             text = {
                                                 androidx.compose.material3.Text(
-                                                    text = title,
+                                                    text = "${language.name} (${language.code})",
                                                     color = if (dark) Color(0xFFF2F5F8) else Color(0xFF3B3B3B),
                                                 )
                                             },
                                             onClick = {
-                                                languageMenuExpanded = false
-                                                onLanguageSelected(value)
+                                                translationMenuExpanded = false
+                                                onTranslate(language.name)
                                             },
-                                            enabled = value != activeOcrMode,
                                         )
                                     }
                                 }
@@ -682,16 +835,96 @@ private fun BigBangOverlayContent(
             ) { bodyModifier ->
                 Column(modifier = bodyModifier.fillMaxSize()) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    AndroidView(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(bottom = 4.dp),
-                        factory = {
-                            contentView
-                        },
-                    )
+                    if (editing) {
+                        LaunchedEffect(Unit) {
+                            editFocusRequester.requestFocus()
+                        }
+                        BigBangEditTextBox(
+                            text = editText,
+                            onTextChange = { editText = it },
+                            onCommit = commitEditedText,
+                            onFocusChanged = { focused ->
+                                if (editHadFocus && !focused) {
+                                    commitEditedText()
+                                }
+                                if (focused) {
+                                    editHadFocus = true
+                                }
+                            },
+                            focusRequester = editFocusRequester,
+                            dark = dark,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                        )
+                    } else {
+                        AndroidView(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(bottom = 4.dp),
+                            factory = {
+                                contentView
+                            },
+                        )
+                    }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BigBangEditTextBox(
+    text: String,
+    onTextChange: (String) -> Unit,
+    onCommit: () -> Unit,
+    onFocusChanged: (Boolean) -> Unit,
+    focusRequester: FocusRequester,
+    dark: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val background = if (dark) Color(0xFF20262D) else Color.White
+    val textColor = if (dark) Color(0xFFF2F5F8) else Color(0xFF333333)
+    val hintColor = if (dark) Color(0xFF8E98A4) else Color(0xFF9A948D)
+    Box(
+        modifier = modifier
+            .background(background, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+            .padding(14.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            BasicTextField(
+                value = text,
+                onValueChange = onTextChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .focusRequester(focusRequester)
+                    .onFocusChanged { onFocusChanged(it.isFocused) },
+                textStyle = TextStyle(
+                    color = textColor,
+                    fontSize = 17.sp,
+                    lineHeight = 24.sp,
+                ),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onCommit() }),
+                decorationBox = { innerTextField ->
+                    if (text.isEmpty()) {
+                        androidx.compose.material3.Text(
+                            text = stringResource(R.string.bigbang_edit_text_hint),
+                            color = hintColor,
+                            fontSize = 17.sp,
+                        )
+                    }
+                    innerTextField()
+                },
+            )
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onCommit,
+            ) {
+                androidx.compose.material3.Text(text = stringResource(R.string.bigbang_edit_done))
             }
         }
     }

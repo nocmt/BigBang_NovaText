@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 
 import com.cashewteam.novatext.android.BoomEdgeActionPolicy;
 import com.cashewteam.novatext.android.FloatingBallTriggerPolicy;
+import com.cashewteam.novatext.android.InlineTranslationClient;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -35,6 +36,11 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_TRIGGER_MODE = "floating_ball_trigger_mode";
     public static final String KEY_BIGBANG_PULL_ACTION_ORDER = "bigbang_pull_action_order";
     public static final String KEY_CONTEXT_APPEND_ACTIONS_ENABLED = "context_append_actions_enabled";
+    public static final String KEY_TRANSLATION_API_URL = "translation_api_url";
+    public static final String KEY_TRANSLATION_API_KEY = "translation_api_key";
+    public static final String KEY_TRANSLATION_MODEL = "translation_model";
+    public static final String KEY_TRANSLATION_PROMPT_TEMPLATE = "translation_prompt_template";
+    public static final String KEY_TRANSLATION_TARGET_LANGUAGE = "translation_target_language";
     public static final String KEY_ADAPTIVE_LAUNCHER_ICON = "adaptive_launcher_icon";
     public static final String KEY_CLASSIC_OVERLAY_STYLE = "classic_overlay_style";
 
@@ -77,6 +83,7 @@ public final class BigBangSettings {
     private static final int DEFAULT_FLOATING_BALL_IDLE_ALPHA_PERCENT = 20;
     private static final int DEFAULT_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = 18;
     private static final int DEFAULT_FLOATING_BALL_TRIGGER_MODE = FloatingBallTriggerPolicy.MODE_CLICK;
+    private static final String DEFAULT_TRANSLATION_TARGET_LANGUAGE = "英语";
 
     private final SharedPreferences preferences;
 
@@ -311,6 +318,61 @@ public final class BigBangSettings {
         preferences.edit().putBoolean(KEY_CONTEXT_APPEND_ACTIONS_ENABLED, enabled).apply();
     }
 
+    public String getTranslationApiUrl() {
+        return preferences.getString(KEY_TRANSLATION_API_URL, InlineTranslationClient.DEFAULT_API_URL);
+    }
+
+    public void setTranslationApiUrl(String value) {
+        preferences.edit().putString(
+                KEY_TRANSLATION_API_URL,
+                normalizeString(value, InlineTranslationClient.DEFAULT_API_URL)
+        ).apply();
+    }
+
+    public String getTranslationApiKey() {
+        return preferences.getString(KEY_TRANSLATION_API_KEY, "");
+    }
+
+    public void setTranslationApiKey(String value) {
+        preferences.edit().putString(KEY_TRANSLATION_API_KEY, normalizeString(value, "")).apply();
+    }
+
+    public String getTranslationModel() {
+        return preferences.getString(KEY_TRANSLATION_MODEL, InlineTranslationClient.DEFAULT_MODEL);
+    }
+
+    public void setTranslationModel(String value) {
+        preferences.edit().putString(
+                KEY_TRANSLATION_MODEL,
+                normalizeString(value, InlineTranslationClient.DEFAULT_MODEL)
+        ).apply();
+    }
+
+    public String getTranslationPromptTemplate() {
+        return preferences.getString(
+                KEY_TRANSLATION_PROMPT_TEMPLATE,
+                InlineTranslationClient.DEFAULT_PROMPT_TEMPLATE
+        );
+    }
+
+    public void setTranslationPromptTemplate(String value) {
+        preferences.edit().putString(
+                KEY_TRANSLATION_PROMPT_TEMPLATE,
+                normalizeString(value, InlineTranslationClient.DEFAULT_PROMPT_TEMPLATE)
+        ).apply();
+    }
+
+    public String getTranslationTargetLanguage() {
+        return preferences.getString(KEY_TRANSLATION_TARGET_LANGUAGE, DEFAULT_TRANSLATION_TARGET_LANGUAGE);
+    }
+
+    public void setTranslationTargetLanguage(String value) {
+        preferences.edit().putString(
+                KEY_TRANSLATION_TARGET_LANGUAGE,
+                normalizeString(value, DEFAULT_TRANSLATION_TARGET_LANGUAGE)
+        ).apply();
+    }
+
     public boolean isAdaptiveLauncherIconEnabled() {
         return preferences.getBoolean(KEY_ADAPTIVE_LAUNCHER_ICON, false);
     }
@@ -333,6 +395,14 @@ public final class BigBangSettings {
 
     private static int clampAngleDegrees(int value) {
         return Math.max(5, Math.min(45, value));
+    }
+
+    private static String normalizeString(String value, String fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? fallback : trimmed;
     }
 
     private static Set<String> defaultOcrWhitelistPackages() {
