@@ -158,6 +158,26 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         return false;
     }
 
+    public void clearSelectionForProgrammaticReplace() {
+        if (mSelectedId.size() == 0) {
+            return;
+        }
+        mSelectedId.clear();
+        mSelectedTopRow = -1;
+        mSelectedBottomRow = -1;
+        if (mSelectBar != null) {
+            mSelectBar.setVisibility(View.INVISIBLE);
+            mSelectBar.setAlpha(1.0f);
+        }
+        if (mSelectRect != null) {
+            mSelectRect.setVisibility(View.INVISIBLE);
+            mSelectRect.setAlpha(1.0f);
+        }
+        if (mFakeSelectBar != null && mFakeSelectBar.getVisibility() == View.VISIBLE) {
+            mFakeSelectBar.setVisibility(View.INVISIBLE);
+        }
+    }
+
     void clearSelectionStateForRelayout() {
         mSelectedId.clear();
         mSelectedTopRow = -1;

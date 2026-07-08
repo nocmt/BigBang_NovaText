@@ -132,6 +132,12 @@ public final class BoomEdgeActionPolicyTest {
                 BoomEdgeActionPolicy.directionForAdjacentButton(false),
                 "next button requests after text"
         );
+        int[] bounds = BoomEdgeActionPolicy.contiguousSelectionBounds(8, 3);
+        assertEquals(3, bounds[0], "selection bounds normalize start");
+        assertEquals(8, bounds[1], "selection bounds normalize end");
+        int[] emptyBounds = BoomEdgeActionPolicy.contiguousSelectionBounds(-1, 3);
+        assertEquals(-1, emptyBounds[0], "invalid selection bounds start");
+        assertEquals(-1, emptyBounds[1], "invalid selection bounds end");
     }
 
     private static void assertEquals(String expected, String actual, String message) {

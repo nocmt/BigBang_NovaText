@@ -198,7 +198,6 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onTranslationApiKeyChange = { updateTranslationApiKey(it) },
                     onTranslationModelChange = { updateTranslationModel(it) },
                     onTranslationPromptTemplateChange = { updateTranslationPromptTemplate(it) },
-                    onTranslationTargetLanguageChange = { updateTranslationTargetLanguage(it) },
                     onAdaptiveLauncherIconChange = { updateAdaptiveLauncherIcon(it) },
                     onClassicOverlayStyleChange = { updateClassicOverlayStyle(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
@@ -357,10 +356,6 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun updateTranslationPromptTemplate(value: String) {
         settings.setTranslationPromptTemplate(value)
-    }
-
-    private fun updateTranslationTargetLanguage(value: String) {
-        settings.setTranslationTargetLanguage(value)
     }
 
     private fun updateAdaptiveLauncherIcon(enabled: Boolean) {
@@ -625,7 +620,6 @@ private fun SettingsScreen(
     onTranslationApiKeyChange: (String) -> Unit,
     onTranslationModelChange: (String) -> Unit,
     onTranslationPromptTemplateChange: (String) -> Unit,
-    onTranslationTargetLanguageChange: (String) -> Unit,
     onAdaptiveLauncherIconChange: (Boolean) -> Unit,
     onClassicOverlayStyleChange: (Boolean) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
@@ -724,9 +718,6 @@ private fun SettingsScreen(
     }
     var translationPromptTemplate by rememberSaveable {
         mutableStateOf(settings.translationPromptTemplate)
-    }
-    var translationTargetLanguage by rememberSaveable {
-        mutableStateOf(settings.translationTargetLanguage)
     }
     var adaptiveLauncherIconEnabled by rememberSaveable {
         mutableStateOf(settings.isAdaptiveLauncherIconEnabled)
@@ -1061,7 +1052,6 @@ private fun SettingsScreen(
                                         apiKey = translationApiKey,
                                         model = translationModel,
                                         promptTemplate = translationPromptTemplate,
-                                        targetLanguage = translationTargetLanguage,
                                         onApiUrlChange = {
                                             translationApiUrl = it
                                             onTranslationApiUrlChange(it)
@@ -1077,10 +1067,6 @@ private fun SettingsScreen(
                                         onPromptTemplateChange = {
                                             translationPromptTemplate = it
                                             onTranslationPromptTemplateChange(it)
-                                        },
-                                        onTargetLanguageChange = {
-                                            translationTargetLanguage = it
-                                            onTranslationTargetLanguageChange(it)
                                         },
                                     )
                                 }
@@ -1163,34 +1149,63 @@ private fun MainSettingsTabs(
         MainSettingsTab.Search to stringResource(R.string.settings_tab_search),
         MainSettingsTab.Debug to stringResource(R.string.settings_tab_debug),
     )
-    SingleChoiceSegmentedButtonRow(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        tabs.forEachIndexed { index, item ->
-            SegmentedButton(
-                selected = item.first.name == selectedTab,
-                onClick = { onSelected(item.first) },
-                shape = SegmentedButtonDefaults.itemShape(
-                    index = index,
-                    count = tabs.size,
-                ),
-                colors = SegmentedButtonDefaults.colors(
-                    activeContainerColor = palette.accentSoft,
-                    activeContentColor = palette.textPrimary,
-                    activeBorderColor = palette.accent.copy(alpha = 0.45f),
-                    inactiveContainerColor = palette.cardInset,
-                    inactiveContentColor = palette.textSecondary,
-                    inactiveBorderColor = palette.cardBorder,
-                ),
-                modifier = Modifier.height(40.dp),
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(tabs.take(3), tabs.drop(3)).forEach { rowTabs ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    text = item.second,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                rowTabs.forEach { item ->
+                    MainSettingsTabPill(
+                        selected = item.first.name == selectedTab,
+                        text = item.second,
+                        onClick = { onSelected(item.first) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (rowTabs.size < 3) {
+                    repeat(3 - rowTabs.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun MainSettingsTabPill(
+    selected: Boolean,
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalSettingsPalette.current
+    val shape = RoundedCornerShape(18.dp)
+    Surface(
+        modifier = modifier
+            .height(38.dp)
+            .clip(shape)
+            .clickable(onClick = onClick),
+        shape = shape,
+        color = if (selected) palette.accentSoft else palette.cardInset,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (selected) palette.accent.copy(alpha = 0.45f) else palette.cardBorder,
+        ),
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = text,
+                color = if (selected) palette.textPrimary else palette.textSecondary,
+                fontSize = 13.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -1229,12 +1244,10 @@ private fun TranslationSection(
     apiKey: String,
     model: String,
     promptTemplate: String,
-    targetLanguage: String,
     onApiUrlChange: (String) -> Unit,
     onApiKeyChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
     onPromptTemplateChange: (String) -> Unit,
-    onTargetLanguageChange: (String) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1267,12 +1280,6 @@ private fun TranslationSection(
             value = model,
             onValueChange = onModelChange,
             label = stringResource(R.string.translation_model_title),
-            singleLine = true,
-        )
-        SettingsTextField(
-            value = targetLanguage,
-            onValueChange = onTargetLanguageChange,
-            label = stringResource(R.string.translation_default_target_title),
             singleLine = true,
         )
         SettingsTextField(

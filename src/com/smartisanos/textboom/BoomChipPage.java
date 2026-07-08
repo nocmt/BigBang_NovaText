@@ -675,11 +675,11 @@ public class BoomChipPage {
             addOverlappingWords(matchedWords, matcher.start(), matcher.end());
             break;
         }
-        if (mBoomActionHandler.hasSelection()) {
-            mBoomActionHandler.handleClick();
-        }
         if (matchedWords.isEmpty()) {
             return false;
+        }
+        if (mBoomActionHandler.hasSelection()) {
+            mBoomActionHandler.clearSelectionForProgrammaticReplace();
         }
         applySelection(matchedWords);
         return true;
@@ -707,6 +707,16 @@ public class BoomChipPage {
     }
 
     private void applySelection(TreeSet<Integer> selectedWords) {
+        if (selectedWords.isEmpty()) {
+            return;
+        }
+        int[] bounds = BoomEdgeActionPolicy.contiguousSelectionBounds(
+                selectedWords.first(),
+                selectedWords.last()
+        );
+        if (bounds[0] < 0 || bounds[1] < 0) {
+            return;
+        }
         for (int i = 0; i < mLayout.getRowCount(); ++i) {
             final LinearLayout row = getChipRow(i);
             if (row == null) {
@@ -716,11 +726,11 @@ public class BoomChipPage {
                 View child = row.getChildAt(j);
                 if (child.getTag() instanceof BoomChip) {
                     BoomChip chip = (BoomChip) child.getTag();
-                    chip.setSelected(selectedWords.contains(chip.index));
+                    chip.setSelected(chip.index >= bounds[0] && chip.index <= bounds[1]);
                 }
             }
         }
-        mBoomActionHandler.onSelect(selectedWords);
+        mBoomActionHandler.onSelect(bounds[0], bounds[1]);
     }
 
     private void applyContentOffset(float offset) {

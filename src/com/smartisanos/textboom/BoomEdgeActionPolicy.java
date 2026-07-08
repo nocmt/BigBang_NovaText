@@ -120,6 +120,13 @@ public final class BoomEdgeActionPolicy {
         return text != null && LINK_PATTERN.matcher(text).matches();
     }
 
+    public static int[] contiguousSelectionBounds(int first, int last) {
+        if (first < 0 || last < 0) {
+            return new int[] {-1, -1};
+        }
+        return new int[] {Math.min(first, last), Math.max(first, last)};
+    }
+
     private static int defaultIndexOf(String action) {
         for (int i = 0; i < DEFAULT_ACTION_ORDER.length; i++) {
             if (DEFAULT_ACTION_ORDER[i].equals(action)) {
