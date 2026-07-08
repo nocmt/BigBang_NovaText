@@ -74,9 +74,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -115,6 +118,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
@@ -1816,7 +1820,10 @@ private fun PullActionOrderSection(
     val palette = LocalSettingsPalette.current
     val density = LocalDensity.current
     val dragThresholdPx = with(density) { 40.dp.toPx() }
-    var draggingIndex by remember { mutableIntStateOf(-1) }
+    val latestActionOrder by rememberUpdatedState(actionOrder)
+    val latestOnActionOrderChange by rememberUpdatedState(onActionOrderChange)
+    var draggingAction by remember { mutableStateOf<String?>(null) }
+    var dragOffsetPx by remember { mutableFloatStateOf(0f) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             text = stringResource(R.string.bigbang_pull_action_order_title),
@@ -1831,74 +1838,89 @@ private fun PullActionOrderSection(
             lineHeight = 20.sp,
         )
         actionOrder.forEachIndexed { index, action ->
-            var accumulatedDrag = 0f
-            val dragging = draggingIndex == index
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer {
-                        scaleX = if (dragging) 1.025f else 1f
-                        scaleY = if (dragging) 1.025f else 1f
-                    },
-                shape = RoundedCornerShape(12.dp),
-                color = if (dragging) palette.card else palette.cardInset,
-                shadowElevation = if (dragging) 12.dp else 0.dp,
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (dragging) palette.accent.copy(alpha = 0.45f) else palette.cardBorder,
-                ),
-            ) {
-                Row(
+            key(action) {
+                val dragging = draggingAction == action
+                Surface(
                     modifier = Modifier
-                    .pointerInput(actionOrder, index) {
-                        detectVerticalDragGestures(
-                            onDragStart = {
-                                accumulatedDrag = 0f
-                                draggingIndex = index
-                            },
-                            onDragEnd = { draggingIndex = -1 },
-                            onDragCancel = { draggingIndex = -1 },
-                            onVerticalDrag = { change, dragAmount ->
-                                change.consume()
-                                accumulatedDrag += dragAmount
-                                when {
-                                    accumulatedDrag > dragThresholdPx && index < actionOrder.lastIndex -> {
-                                        onActionOrderChange(actionOrder.moveItem(index, index + 1))
-                                        accumulatedDrag = 0f
-                                    }
-                                    accumulatedDrag < -dragThresholdPx && index > 0 -> {
-                                        onActionOrderChange(actionOrder.moveItem(index, index - 1))
-                                        accumulatedDrag = 0f
-                                    }
-                                }
-                            },
+                        .fillMaxWidth()
+                        .zIndex(if (dragging) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = if (dragging) dragOffsetPx else 0f
+                            scaleX = if (dragging) 1.025f else 1f
+                            scaleY = if (dragging) 1.025f else 1f
+                        },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (dragging) palette.card else palette.cardInset,
+                    shadowElevation = if (dragging) 12.dp else 0.dp,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (dragging) palette.accent.copy(alpha = 0.45f) else palette.cardBorder,
+                    ),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .pointerInput(action) {
+                                detectVerticalDragGestures(
+                                    onDragStart = {
+                                        draggingAction = action
+                                        dragOffsetPx = 0f
+                                    },
+                                    onDragEnd = {
+                                        draggingAction = null
+                                        dragOffsetPx = 0f
+                                    },
+                                    onDragCancel = {
+                                        draggingAction = null
+                                        dragOffsetPx = 0f
+                                    },
+                                    onVerticalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        draggingAction = action
+                                        dragOffsetPx += dragAmount
+
+                                        var order = latestActionOrder
+                                        var currentIndex = order.indexOf(action)
+                                        while (dragOffsetPx > dragThresholdPx && currentIndex in 0 until order.lastIndex) {
+                                            order = order.moveItem(currentIndex, currentIndex + 1)
+                                            latestOnActionOrderChange(order)
+                                            dragOffsetPx -= dragThresholdPx
+                                            currentIndex += 1
+                                        }
+                                        while (dragOffsetPx < -dragThresholdPx && currentIndex > 0) {
+                                            order = order.moveItem(currentIndex, currentIndex - 1)
+                                            latestOnActionOrderChange(order)
+                                            dragOffsetPx += dragThresholdPx
+                                            currentIndex -= 1
+                                        }
+                                    },
+                                )
+                            }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            text = (index + 1).toString(),
+                            color = palette.textSecondary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.width(22.dp),
+                        )
+                        Text(
+                            text = stringResource(pullActionTitleRes(action)),
+                            color = palette.textPrimary,
+                            fontSize = 14.sp,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Icon(
+                            imageVector = Icons.Outlined.DragHandle,
+                            contentDescription = stringResource(R.string.bigbang_pull_action_drag_handle),
+                            tint = palette.textSecondary,
+                            modifier = Modifier.size(20.dp),
                         )
                     }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Text(
-                        text = (index + 1).toString(),
-                        color = palette.textSecondary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.width(22.dp),
-                    )
-                    Text(
-                        text = stringResource(pullActionTitleRes(action)),
-                        color = palette.textPrimary,
-                        fontSize = 14.sp,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Icon(
-                        imageVector = Icons.Outlined.DragHandle,
-                        contentDescription = stringResource(R.string.bigbang_pull_action_drag_handle),
-                        tint = palette.textSecondary,
-                        modifier = Modifier.size(20.dp),
-                    )
                 }
             }
         }
