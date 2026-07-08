@@ -34,6 +34,7 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA = "floating_ball_landscape_safe_area";
     public static final String KEY_FLOATING_BALL_TRIGGER_MODE = "floating_ball_trigger_mode";
     public static final String KEY_BIGBANG_PULL_ACTION_ORDER = "bigbang_pull_action_order";
+    public static final String KEY_CONTEXT_APPEND_ACTIONS_ENABLED = "context_append_actions_enabled";
     public static final String KEY_ADAPTIVE_LAUNCHER_ICON = "adaptive_launcher_icon";
     public static final String KEY_CLASSIC_OVERLAY_STYLE = "classic_overlay_style";
 
@@ -300,6 +301,14 @@ public final class BigBangSettings {
         preferences.edit()
                 .putString(KEY_BIGBANG_PULL_ACTION_ORDER, BoomEdgeActionPolicy.normalizeActionOrderString(value))
                 .apply();
+    }
+
+    public boolean isContextAppendActionsEnabled() {
+        return preferences.getBoolean(KEY_CONTEXT_APPEND_ACTIONS_ENABLED, false);
+    }
+
+    public void setContextAppendActionsEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_CONTEXT_APPEND_ACTIONS_ENABLED, enabled).apply();
     }
 
     public boolean isAdaptiveLauncherIconEnabled() {

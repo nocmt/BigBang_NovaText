@@ -191,6 +191,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallLandscapeSafeAreaChange = { updateFloatingBallLandscapeSafeArea(it) },
                     onFloatingBallTriggerModeChange = { updateFloatingBallTriggerMode(it) },
                     onBigBangPullActionOrderChange = { updateBigBangPullActionOrder(it) },
+                    onContextAppendActionsChange = { updateContextAppendActions(it) },
                     onAdaptiveLauncherIconChange = { updateAdaptiveLauncherIcon(it) },
                     onClassicOverlayStyleChange = { updateClassicOverlayStyle(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
@@ -331,6 +332,10 @@ class TextBoomSettingsActivity : ComponentActivity() {
         settings.setBigBangPullActionOrder(BoomEdgeActionPolicy.joinActionOrder(order.toTypedArray()))
     }
 
+    private fun updateContextAppendActions(enabled: Boolean) {
+        settings.setContextAppendActionsEnabled(enabled)
+    }
+
     private fun updateAdaptiveLauncherIcon(enabled: Boolean) {
         LauncherIconManager.setAdaptiveEnabled(this, enabled)
     }
@@ -388,6 +393,13 @@ private enum class SettingsPage {
     Main,
     OcrWhitelist,
     About,
+}
+
+private enum class MainSettingsTab {
+    Entry,
+    Recognition,
+    Search,
+    Debug,
 }
 
 private data class SettingsPalette(
@@ -580,6 +592,7 @@ private fun SettingsScreen(
     onFloatingBallLandscapeSafeAreaChange: (Boolean) -> Unit,
     onFloatingBallTriggerModeChange: (Int) -> Unit,
     onBigBangPullActionOrderChange: (List<String>) -> Unit,
+    onContextAppendActionsChange: (Boolean) -> Unit,
     onAdaptiveLauncherIconChange: (Boolean) -> Unit,
     onClassicOverlayStyleChange: (Boolean) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
@@ -605,6 +618,7 @@ private fun SettingsScreen(
     var selectedDictionary by rememberSaveable { mutableIntStateOf(settings.dictSearchType) }
     var selectedOcrMode by rememberSaveable { mutableStateOf(settings.ocrRecognizerMode) }
     var currentPage by rememberSaveable { mutableStateOf(initialPage.name) }
+    var selectedMainTab by rememberSaveable { mutableStateOf(MainSettingsTab.Entry.name) }
     var debugSkipAccessibility by rememberSaveable {
         mutableStateOf(settings.isDebugSkipAccessibilityEnabled)
     }
@@ -662,6 +676,9 @@ private fun SettingsScreen(
     }
     var bigBangPullActionOrder by rememberSaveable {
         mutableStateOf(settings.bigBangPullActionOrderArray.toList())
+    }
+    var contextAppendActionsEnabled by rememberSaveable {
+        mutableStateOf(settings.isContextAppendActionsEnabled)
     }
     var adaptiveLauncherIconEnabled by rememberSaveable {
         mutableStateOf(settings.isAdaptiveLauncherIconEnabled)
@@ -748,258 +765,284 @@ private fun SettingsScreen(
             when (page) {
                 SettingsPage.OcrWhitelist.name -> {
                     OcrWhitelistPage(
-                topPadding = listTopPadding,
-                whitelistPackages = ocrWhitelistPackages,
-                apps = launcherApps,
-                onBack = { currentPage = SettingsPage.Main.name },
-                onTogglePackage = { packageName ->
-                    val next = ocrWhitelistPackages.toMutableSet()
-                    if (!next.add(packageName)) {
-                        next.remove(packageName)
-                    }
-                    ocrWhitelistPackages = next
-                    settings.setOcrWhitelistPackages(next)
-                },
-            )
+                        topPadding = listTopPadding,
+                        whitelistPackages = ocrWhitelistPackages,
+                        apps = launcherApps,
+                        onBack = { currentPage = SettingsPage.Main.name },
+                        onTogglePackage = { packageName ->
+                            val next = ocrWhitelistPackages.toMutableSet()
+                            if (!next.add(packageName)) {
+                                next.remove(packageName)
+                            }
+                            ocrWhitelistPackages = next
+                            settings.setOcrWhitelistPackages(next)
+                        },
+                    )
                 }
                 SettingsPage.About.name -> {
                     AboutPage(
-                topPadding = listTopPadding,
-                onBack = { currentPage = SettingsPage.Main.name },
-            )
+                        topPadding = listTopPadding,
+                        onBack = { currentPage = SettingsPage.Main.name },
+                    )
                 }
                 else -> {
                     LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp),
-                contentPadding = PaddingValues(top = listTopPadding, bottom = 22.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                item {
-                    Box(
                         modifier = Modifier
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.TopCenter,
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp),
+                        contentPadding = PaddingValues(top = listTopPadding, bottom = 22.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                    Column(
-                        modifier = Modifier.widthIn(max = 600.dp),
-                    ) {
-                        Text(
-                            text = "Alpha ${BuildConfig.VERSION_NAME}",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { currentPage = SettingsPage.About.name }
-                                .padding(bottom = 2.dp),
-                            color = palette.textSecondary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        )
-                        SettingsSectionCard {
-                            PermissionSection(
-                                state = permissionState,
-                                onOpenOverlayPermission = onOpenOverlayPermission,
-                                onOpenAccessibilitySettings = onOpenAccessibilitySettings,
-                                onStartFloatingBall = onStartFloatingBall,
-                                onStopFloatingBall = onStopFloatingBall,
-                                onResetFloatingBall = onResetFloatingBall,
-                        )
-                    }
-                    }
-                    }
-                }
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.TopCenter,
+                            ) {
+                                Column(
+                                    modifier = Modifier.widthIn(max = 600.dp),
+                                ) {
+                                    Text(
+                                        text = "Alpha ${BuildConfig.VERSION_NAME}",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { currentPage = SettingsPage.About.name }
+                                            .padding(bottom = 10.dp),
+                                        color = palette.textSecondary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    )
+                                    MainSettingsTabs(
+                                        selectedTab = selectedMainTab,
+                                        onSelected = { selectedMainTab = it.name },
+                                    )
+                                }
+                            }
+                        }
 
-                item {
-                    SettingsSectionCard {
-                        FloatingBallSection(
-                            floatingBallSizePercent = floatingBallSizePercent,
-                            floatingBallActiveAlphaPercent = floatingBallActiveAlphaPercent,
-                            floatingBallIdleAlphaPercent = floatingBallIdleAlphaPercent,
-                            floatingBallHeightLocked = floatingBallHeightLocked,
-                            floatingBallOneHandMode = floatingBallOneHandMode,
-                            floatingBallOneHandAngle = floatingBallOneHandAngle,
-                            floatingBallHidden = floatingBallHidden,
-                            floatingBallLandscapeSafeArea = floatingBallLandscapeSafeArea,
-                            floatingBallTriggerMode = floatingBallTriggerMode,
-                            onFloatingBallSizeChange = {
-                                floatingBallSizePercent = it
-                                onFloatingBallSizeChange(it)
-                            },
-                            onFloatingBallActiveAlphaChange = {
-                                floatingBallActiveAlphaPercent = it
-                                onFloatingBallActiveAlphaChange(it)
-                            },
-                            onFloatingBallIdleAlphaChange = {
-                                floatingBallIdleAlphaPercent = it
-                                onFloatingBallIdleAlphaChange(it)
-                            },
-                            onFloatingBallHeightLockedChange = {
-                                floatingBallHeightLocked = it
-                                onFloatingBallHeightLockedChange(it)
-                            },
-                            onFloatingBallOneHandModeChange = {
-                                floatingBallOneHandMode = it
-                                onFloatingBallOneHandModeChange(it)
-                            },
-                            onFloatingBallOneHandAngleChange = {
-                                floatingBallOneHandAngle = it
-                                onFloatingBallOneHandAngleChange(it)
-                            },
-                            onFloatingBallHiddenChange = {
-                                floatingBallHidden = it
-                                onFloatingBallHiddenChange(it)
-                            },
-                            onFloatingBallLandscapeSafeAreaChange = {
-                                floatingBallLandscapeSafeArea = it
-                                onFloatingBallLandscapeSafeAreaChange(it)
-                            },
-                            onFloatingBallTriggerModeChange = {
-                                floatingBallTriggerMode = it
-                                onFloatingBallTriggerModeChange(it)
-                            },
-                        )
-                    }
-                }
+                        if (selectedMainTab == MainSettingsTab.Entry.name) {
+                            item {
+                                SettingsSectionCard {
+                                    PermissionSection(
+                                        state = permissionState,
+                                        onOpenOverlayPermission = onOpenOverlayPermission,
+                                        onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+                                        onStartFloatingBall = onStartFloatingBall,
+                                        onStopFloatingBall = onStopFloatingBall,
+                                        onResetFloatingBall = onResetFloatingBall,
+                                    )
+                                }
+                            }
 
-                item {
-                    SettingsSectionCard {
-                        PullActionOrderSection(
-                            actionOrder = bigBangPullActionOrder,
-                            onActionOrderChange = {
-                                bigBangPullActionOrder = it
-                                onBigBangPullActionOrderChange(it)
-                            },
-                        )
-                    }
-                }
+                            item {
+                                SettingsSectionCard {
+                                    FloatingBallSection(
+                                        floatingBallSizePercent = floatingBallSizePercent,
+                                        floatingBallActiveAlphaPercent = floatingBallActiveAlphaPercent,
+                                        floatingBallIdleAlphaPercent = floatingBallIdleAlphaPercent,
+                                        floatingBallHeightLocked = floatingBallHeightLocked,
+                                        floatingBallOneHandMode = floatingBallOneHandMode,
+                                        floatingBallOneHandAngle = floatingBallOneHandAngle,
+                                        floatingBallHidden = floatingBallHidden,
+                                        floatingBallLandscapeSafeArea = floatingBallLandscapeSafeArea,
+                                        floatingBallTriggerMode = floatingBallTriggerMode,
+                                        onFloatingBallSizeChange = {
+                                            floatingBallSizePercent = it
+                                            onFloatingBallSizeChange(it)
+                                        },
+                                        onFloatingBallActiveAlphaChange = {
+                                            floatingBallActiveAlphaPercent = it
+                                            onFloatingBallActiveAlphaChange(it)
+                                        },
+                                        onFloatingBallIdleAlphaChange = {
+                                            floatingBallIdleAlphaPercent = it
+                                            onFloatingBallIdleAlphaChange(it)
+                                        },
+                                        onFloatingBallHeightLockedChange = {
+                                            floatingBallHeightLocked = it
+                                            onFloatingBallHeightLockedChange(it)
+                                        },
+                                        onFloatingBallOneHandModeChange = {
+                                            floatingBallOneHandMode = it
+                                            onFloatingBallOneHandModeChange(it)
+                                        },
+                                        onFloatingBallOneHandAngleChange = {
+                                            floatingBallOneHandAngle = it
+                                            onFloatingBallOneHandAngleChange(it)
+                                        },
+                                        onFloatingBallHiddenChange = {
+                                            floatingBallHidden = it
+                                            onFloatingBallHiddenChange(it)
+                                        },
+                                        onFloatingBallLandscapeSafeAreaChange = {
+                                            floatingBallLandscapeSafeArea = it
+                                            onFloatingBallLandscapeSafeAreaChange(it)
+                                        },
+                                        onFloatingBallTriggerModeChange = {
+                                            floatingBallTriggerMode = it
+                                            onFloatingBallTriggerModeChange(it)
+                                        },
+                                    )
+                                }
+                            }
 
-                item {
-                    SettingsSectionCard {
-                        LauncherIconSection(
-                            adaptiveLauncherIconEnabled = adaptiveLauncherIconEnabled,
-                            onAdaptiveLauncherIconChange = {
-                                adaptiveLauncherIconEnabled = it
-                                onAdaptiveLauncherIconChange(it)
-                            },
-                        )
-                    }
-                }
+                            item {
+                                SettingsSectionCard {
+                                    PullActionOrderSection(
+                                        actionOrder = bigBangPullActionOrder,
+                                        onActionOrderChange = {
+                                            bigBangPullActionOrder = it
+                                            onBigBangPullActionOrderChange(it)
+                                        },
+                                    )
+                                }
+                            }
 
-                item {
-                    SettingsSectionCard {
-                        OverlayStyleSection(
-                            classicOverlayStyleEnabled = classicOverlayStyleEnabled,
-                            onClassicOverlayStyleChange = {
-                                classicOverlayStyleEnabled = it
-                                onClassicOverlayStyleChange(it)
-                            },
-                        )
-                    }
-                }
+                            item {
+                                SettingsSectionCard {
+                                    BigBangBehaviorSection(
+                                        contextAppendActionsEnabled = contextAppendActionsEnabled,
+                                        onContextAppendActionsChange = {
+                                            contextAppendActionsEnabled = it
+                                            onContextAppendActionsChange(it)
+                                        },
+                                    )
+                                }
+                            }
 
-                item {
-                    SettingsSectionCard {
-                        OcrSection(
-                            selectedMode = selectedOcrMode,
-                            modes = ocrModes,
-                            whitelistCount = selectedCount,
-                            shizukuStatus = shizukuStatus,
-                            onModeSelected = {
-                                selectedOcrMode = it
-                                settings.setOcrRecognizerMode(it)
-                            },
-                            onPickImage = onOpenOcrDebugPicker,
-                            onManageWhitelist = { currentPage = SettingsPage.OcrWhitelist.name },
-                            onRequestShizukuPermission = {
-                                ShizukuScreenshotCapture.requestPermission()
-                                shizukuStatus = ShizukuScreenshotCapture.getStatus()
-                            },
-                        )
-                    }
-                }
+                            item {
+                                SettingsSectionCard {
+                                    LauncherIconSection(
+                                        adaptiveLauncherIconEnabled = adaptiveLauncherIconEnabled,
+                                        onAdaptiveLauncherIconChange = {
+                                            adaptiveLauncherIconEnabled = it
+                                            onAdaptiveLauncherIconChange(it)
+                                        },
+                                    )
+                                }
+                            }
 
-                item {
-                    SettingsSectionCard {
-                        DebugSection(
-                            previewText = previewText,
-                            selectedPresetIndex = selectedPresetIndex,
-                            presetLabels = presetLabels,
-                            warmUpState = warmUpState,
-                            debugSkipAccessibility = debugSkipAccessibility,
-                            debugCaptureTrace = debugCaptureTrace,
-                            onPresetSelected = { index ->
-                                val text = presetTexts[index]
-                                selectedPresetIndex = index
-                                previewText = text
-                                settings.setDebugPresetText(text)
-                                settings.setDebugPreviewText(text)
-                            },
-                            onPreviewTextChange = {
-                                previewText = it
-                                settings.setDebugPreviewText(it)
-                            },
-                            onPreviewClick = {
-                                settings.setDebugPreviewText(previewText)
-                                onOpenPreview(previewText)
-                            },
-                            onDebugSkipAccessibilityChange = {
-                                debugSkipAccessibility = it
-                                settings.setDebugSkipAccessibilityEnabled(it)
-                            },
-                            onDebugCaptureTraceChange = {
-                                debugCaptureTrace = it
-                                settings.setDebugCaptureTraceEnabled(it)
-                            },
-                        )
-                    }
-                }
+                            item {
+                                SettingsSectionCard {
+                                    OverlayStyleSection(
+                                        classicOverlayStyleEnabled = classicOverlayStyleEnabled,
+                                        onClassicOverlayStyleChange = {
+                                            classicOverlayStyleEnabled = it
+                                            onClassicOverlayStyleChange(it)
+                                        },
+                                    )
+                                }
+                            }
+                        }
 
-                item {
-                    SettingsSectionCard {
-                        OptionSection(
-                            title = stringResource(R.string.default_search_way),
-                            subtitle = stringResource(R.string.settings_search_summary),
-                            options = searchOptions,
-                            selectedValue = selectedSearch,
-                            onSelect = {
-                                selectedSearch = it
-                                settings.setWebSearchType(it)
-                            },
-                        )
-                    }
-                }
+                        if (selectedMainTab == MainSettingsTab.Recognition.name) {
+                            item {
+                                SettingsSectionCard {
+                                    OcrSection(
+                                        selectedMode = selectedOcrMode,
+                                        modes = ocrModes,
+                                        whitelistCount = selectedCount,
+                                        shizukuStatus = shizukuStatus,
+                                        onModeSelected = {
+                                            selectedOcrMode = it
+                                            settings.setOcrRecognizerMode(it)
+                                        },
+                                        onPickImage = onOpenOcrDebugPicker,
+                                        onManageWhitelist = { currentPage = SettingsPage.OcrWhitelist.name },
+                                        onRequestShizukuPermission = {
+                                            ShizukuScreenshotCapture.requestPermission()
+                                            shizukuStatus = ShizukuScreenshotCapture.getStatus()
+                                        },
+                                    )
+                                }
+                            }
+                        }
 
-                item {
-                    SettingsSectionCard {
-                        OptionSection(
-                            title = stringResource(R.string.default_wiki_way),
-                            subtitle = stringResource(R.string.settings_wiki_summary),
-                            options = wikiOptions,
-                            selectedValue = selectedWiki,
-                            onSelect = {
-                                selectedWiki = it
-                                settings.setWikiSearchType(it)
-                            },
-                        )
-                    }
-                }
+                        if (selectedMainTab == MainSettingsTab.Search.name) {
+                            item {
+                                SettingsSectionCard {
+                                    OptionSection(
+                                        title = stringResource(R.string.default_search_way),
+                                        subtitle = stringResource(R.string.settings_search_summary),
+                                        options = searchOptions,
+                                        selectedValue = selectedSearch,
+                                        onSelect = {
+                                            selectedSearch = it
+                                            settings.setWebSearchType(it)
+                                        },
+                                    )
+                                }
+                            }
 
-                item {
-                    SettingsSectionCard {
-                        OptionSection(
-                            title = stringResource(R.string.default_dict),
-                            subtitle = stringResource(R.string.settings_dict_summary),
-                            options = dictionaryOptions,
-                            selectedValue = selectedDictionary,
-                            onSelect = {
-                                selectedDictionary = it
-                                settings.setDictSearchType(it)
-                            },
-                        )
+                            item {
+                                SettingsSectionCard {
+                                    OptionSection(
+                                        title = stringResource(R.string.default_wiki_way),
+                                        subtitle = stringResource(R.string.settings_wiki_summary),
+                                        options = wikiOptions,
+                                        selectedValue = selectedWiki,
+                                        onSelect = {
+                                            selectedWiki = it
+                                            settings.setWikiSearchType(it)
+                                        },
+                                    )
+                                }
+                            }
+
+                            item {
+                                SettingsSectionCard {
+                                    OptionSection(
+                                        title = stringResource(R.string.default_dict),
+                                        subtitle = stringResource(R.string.settings_dict_summary),
+                                        options = dictionaryOptions,
+                                        selectedValue = selectedDictionary,
+                                        onSelect = {
+                                            selectedDictionary = it
+                                            settings.setDictSearchType(it)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        if (selectedMainTab == MainSettingsTab.Debug.name) {
+                            item {
+                                SettingsSectionCard {
+                                    DebugSection(
+                                        previewText = previewText,
+                                        selectedPresetIndex = selectedPresetIndex,
+                                        presetLabels = presetLabels,
+                                        warmUpState = warmUpState,
+                                        debugSkipAccessibility = debugSkipAccessibility,
+                                        debugCaptureTrace = debugCaptureTrace,
+                                        onPresetSelected = { index ->
+                                            val text = presetTexts[index]
+                                            selectedPresetIndex = index
+                                            previewText = text
+                                            settings.setDebugPresetText(text)
+                                            settings.setDebugPreviewText(text)
+                                        },
+                                        onPreviewTextChange = {
+                                            previewText = it
+                                            settings.setDebugPreviewText(it)
+                                        },
+                                        onPreviewClick = {
+                                            settings.setDebugPreviewText(previewText)
+                                            onOpenPreview(previewText)
+                                        },
+                                        onDebugSkipAccessibilityChange = {
+                                            debugSkipAccessibility = it
+                                            settings.setDebugSkipAccessibilityEnabled(it)
+                                        },
+                                        onDebugCaptureTraceChange = {
+                                            debugCaptureTrace = it
+                                            settings.setDebugCaptureTraceEnabled(it)
+                                        },
+                                    )
+                                }
+                            }
+                        }
                     }
-                }
-            }
                 }
             }
         }
@@ -1020,6 +1063,79 @@ private fun SettingsScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .onSizeChanged { topBarHeightPx = it.height },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MainSettingsTabs(
+    selectedTab: String,
+    onSelected: (MainSettingsTab) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    val tabs = listOf(
+        MainSettingsTab.Entry to stringResource(R.string.settings_tab_entry),
+        MainSettingsTab.Recognition to stringResource(R.string.settings_tab_recognition),
+        MainSettingsTab.Search to stringResource(R.string.settings_tab_search),
+        MainSettingsTab.Debug to stringResource(R.string.settings_tab_debug),
+    )
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        tabs.forEachIndexed { index, item ->
+            SegmentedButton(
+                selected = item.first.name == selectedTab,
+                onClick = { onSelected(item.first) },
+                shape = SegmentedButtonDefaults.itemShape(
+                    index = index,
+                    count = tabs.size,
+                ),
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = palette.accentSoft,
+                    activeContentColor = palette.textPrimary,
+                    activeBorderColor = palette.accent.copy(alpha = 0.45f),
+                    inactiveContainerColor = palette.cardInset,
+                    inactiveContentColor = palette.textSecondary,
+                    inactiveBorderColor = palette.cardBorder,
+                ),
+                modifier = Modifier.height(40.dp),
+            ) {
+                Text(
+                    text = item.second,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BigBangBehaviorSection(
+    contextAppendActionsEnabled: Boolean,
+    onContextAppendActionsChange: (Boolean) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = stringResource(R.string.bigbang_behavior_section_title),
+            color = palette.textPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.bigbang_behavior_section_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        DebugSwitchRow(
+            title = stringResource(R.string.bigbang_context_append_actions_title),
+            subtitle = stringResource(R.string.bigbang_context_append_actions_summary),
+            checked = contextAppendActionsEnabled,
+            onCheckedChange = onContextAppendActionsChange,
         )
     }
 }

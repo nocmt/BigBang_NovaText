@@ -11,8 +11,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.material.icons.outlined.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Language
@@ -110,6 +108,7 @@ class BoomActivity : ComponentActivity() {
                 manualOcrSourceToken = manualOcrSourceToken,
                 classicOverlayStyleEnabled = settings.isClassicOverlayStyleEnabled,
                 ocrRecognizerMode = settings.ocrRecognizerMode,
+                contextAppendActionsEnabled = settings.isContextAppendActionsEnabled,
                 onDismissRequesterChanged = { animatedDismissRequester = it },
                 onDismissRequest = { shouldDismissPage() },
                 onDismissFinished = { finish() },
@@ -188,7 +187,14 @@ class BoomActivity : ComponentActivity() {
     }
 
     private fun requestAdjacent(direction: String) {
-        if (boomChipPage?.requestAdjacent(direction) != true) {
+        if (boomChipPage?.requestAdjacent(direction) == true) {
+            val message = if (direction == BoomEdgeActionPolicy.DIRECTION_BEFORE) {
+                R.string.bigbang_context_append_before_started
+            } else {
+                R.string.bigbang_context_append_after_started
+            }
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        } else {
             Toast.makeText(this, R.string.bigbang_adjacent_unavailable, Toast.LENGTH_SHORT).show()
         }
     }
@@ -433,6 +439,7 @@ private fun BigBangOverlayContent(
     manualOcrSourceToken: String?,
     classicOverlayStyleEnabled: Boolean,
     ocrRecognizerMode: String,
+    contextAppendActionsEnabled: Boolean,
     onDismissRequesterChanged: ((() -> Unit)?) -> Unit,
     onDismissRequest: () -> Boolean,
     onDismissFinished: () -> Unit,
@@ -612,23 +619,25 @@ private fun BigBangOverlayContent(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
+                                if (contextAppendActionsEnabled) {
+                                    OverlayIconAction(
+                                        iconRes = R.drawable.ic_context_append_before,
+                                        tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                                        onClick = onPreviousText,
+                                        contentDescription = stringResource(R.string.bigbang_action_append_before),
+                                    )
+                                    OverlayIconAction(
+                                        iconRes = R.drawable.ic_context_append_after,
+                                        tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                                        onClick = onNextText,
+                                        contentDescription = stringResource(R.string.bigbang_action_append_after),
+                                    )
+                                }
                                 OverlayIconAction(
                                     iconRes = R.drawable.boom_cancel,
                                     tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
                                     onClick = requestDismiss,
                                     contentDescription = stringResource(R.string.search_overlay_close),
-                                )
-                                OverlayIconAction(
-                                    imageVector = Icons.Outlined.KeyboardArrowUp,
-                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
-                                    onClick = onPreviousText,
-                                    contentDescription = stringResource(R.string.bigbang_action_previous_text),
-                                )
-                                OverlayIconAction(
-                                    imageVector = Icons.Outlined.KeyboardArrowDown,
-                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
-                                    onClick = onNextText,
-                                    contentDescription = stringResource(R.string.bigbang_action_next_text),
                                 )
                             }
                         },
